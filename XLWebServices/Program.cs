@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Prometheus;
 using XLWebServices.Services;
+using XLWebServices.Services.PluginData;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddSingleton<RedisService>();
+builder.Services.AddSingleton<GitHubService>();
+builder.Services.AddSingleton<PluginDataService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

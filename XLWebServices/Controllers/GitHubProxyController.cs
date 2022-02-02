@@ -51,14 +51,14 @@ public class GitHubProxyController: ControllerBase
             if (file == "RELEASES")
             {
                 DownloadsOverTime.WithLabels(localVersion).Inc();
-                await _redis.Increment(RedisKeyStarts);
+                await _redis.IncrementCount(RedisKeyStarts);
             }
         }
         else if (file == "RELEASES")
         {
             InstallsOverTime.Inc();
             DownloadsOverTime.WithLabels("Setup").Inc();
-            await _redis.Increment(RedisKeyUniqueInstalls);
+            await _redis.IncrementCount(RedisKeyUniqueInstalls);
         }
 
         if (_cachedReleasesList == null || _cachedPrereleasesList == null)
@@ -117,8 +117,8 @@ public class GitHubProxyController: ControllerBase
     {
         return new ProxyMeta
         {
-            TotalDownloads = await _redis.Get(RedisKeyStarts),
-            UniqueInstalls = await _redis.Get(RedisKeyUniqueInstalls),
+            TotalDownloads = await _redis.GetCount(RedisKeyStarts),
+            UniqueInstalls = await _redis.GetCount(RedisKeyUniqueInstalls),
             ReleaseVersion = ProxyMeta.VersionMeta.From(_cachedRelease),
             PrereleaseVersion = ProxyMeta.VersionMeta.From(_cachedPrerelease),
         };
