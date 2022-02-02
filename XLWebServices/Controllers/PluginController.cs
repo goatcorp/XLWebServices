@@ -56,9 +56,22 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetPluginMaster()
+    public IActionResult GetPluginMaster()
     {
         return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        }), "application/json");
+    }
+
+    [HttpGet("{internalName}")]
+    public IActionResult Plugin(string internalName)
+    {
+        var plugin = _pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
+        if (plugin == null)
+            return BadRequest("Invalid plugin");
+
+        return Content(JsonSerializer.Serialize(plugin, new JsonSerializerOptions
         {
             WriteIndented = true,
         }), "application/json");
