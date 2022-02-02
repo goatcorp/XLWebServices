@@ -66,6 +66,7 @@ public class PluginController : ControllerBase
 
         return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
         {
+            WriteIndented = true,
         }), "application/json");
     }
 
