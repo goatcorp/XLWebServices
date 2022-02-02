@@ -30,8 +30,6 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "branch")] string branch = "master", [FromQuery(Name = "isTesting")] bool isTesting = false)
     {
-        await _pluginData.EnsureOrWait();
-
         if (_pluginData.PluginMaster!.All(x => x.InternalName != internalName))
             return BadRequest("Invalid plugin");
 
@@ -48,8 +46,6 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<Dictionary<string, long>> GetDownloadCounts()
     {
-        await _pluginData.EnsureOrWait();
-
         var counts = new Dictionary<string, long>();
         foreach (var plugin in _pluginData.PluginMaster!)
         {
@@ -62,8 +58,6 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetPluginMaster()
     {
-        await _pluginData.EnsureOrWait();
-
         return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
         {
             WriteIndented = true,
@@ -84,8 +78,6 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<PluginMeta> Meta()
     {
-        await _pluginData.EnsureOrWait();
-
         return new PluginMeta
         {
             NumPlugins = _pluginData.PluginMaster!.Count,

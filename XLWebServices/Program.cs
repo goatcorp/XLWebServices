@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<RedisService>();
 builder.Services.AddSingleton<GitHubService>();
 builder.Services.AddSingleton<PluginDataService>();
+builder.Services.AddSingleton<ReleaseDataService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -42,5 +43,15 @@ app.UseEndpoints(endpoints =>
     endpoints.MapControllers();
     endpoints.MapMetrics();
 });
+
+// Initialize services
+app.Services.GetRequiredService<RedisService>();
+app.Services.GetRequiredService<GitHubService>();
+
+var pds = app.Services.GetRequiredService<PluginDataService>();
+await pds.ClearCache();
+
+var rds = app.Services.GetRequiredService<ReleaseDataService>();
+await rds.ClearCache();
 
 app.Run();

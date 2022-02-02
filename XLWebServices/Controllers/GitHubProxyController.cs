@@ -14,30 +14,22 @@ public class GitHubProxyController: ControllerBase
     private readonly ILogger<GitHubProxyController> _logger;
     private readonly IConfiguration _configuration;
     private readonly RedisService _redis;
-    private readonly GitHubService _github;
+    private readonly ReleaseDataService _releaseData;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_startups", "XIVLauncher Unique Startups", "Version");
     private static readonly Counter InstallsOverTime = Metrics.CreateCounter("xl_installs", "XIVLauncher Installs");
 
-    private static string? _cachedReleasesList;
-    private static string? _cachedPrereleasesList;
-
-    private static Release? _cachedRelease;
-    private static Release? _cachedPrerelease;
-
     private static readonly Regex SemverRegex = new(@"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$", RegexOptions.Compiled);
-
-    private static readonly ManualResetEvent Signal = new(true);
 
     const string RedisKeyUniqueInstalls = "XLUniqueInstalls";
     const string RedisKeyStarts = "XLStarts";
 
-    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, GitHubService github)
+    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, ReleaseDataService releaseData)
     {
         _logger = logger;
         _configuration = configuration;
         _redis = redis;
-        _github = github;
+        _releaseData = releaseData;
     }
 
     [HttpGet("{track:alpha}/{file}")]
@@ -64,28 +56,14 @@ public class GitHubProxyController: ControllerBase
             await _redis.IncrementCount(RedisKeyUniqueInstalls);
         }
 
-        if (_cachedReleasesList == null || _cachedPrereleasesList == null)
-        {
-            if (!Signal.WaitOne(0))
-            {
-                Signal.WaitOne();
-            }
-            else
-            {
-                Signal.Reset();
-                await SetupReleasesAsync();
-                Signal.Set();
-            }
-        }
-
         if (file == "RELEASES")
         {
             switch (track)
             {
                 case "Release":
-                    return Content(_cachedReleasesList);
+                    return Content(_releaseData.CachedReleasesList);
                 case "Prerelease":
-                    return Content(_cachedPrereleasesList);
+                    return Content(_releaseData.CachedPrereleasesList);
             }
         }
         else
@@ -93,9 +71,9 @@ public class GitHubProxyController: ControllerBase
             switch (track)
             {
                 case "Release":
-                    return Redirect(GetDownloadUrlForRelease(_cachedRelease, file));
+                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedRelease, file));
                 case "Prerelease":
-                    return Redirect(GetDownloadUrlForRelease(_cachedPrerelease, file));
+                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedPrerelease, file));
             }
         }
 
@@ -109,7 +87,7 @@ public class GitHubProxyController: ControllerBase
         if (key != _configuration["CacheClearKey"])
             return BadRequest();
 
-        await SetupReleasesAsync();
+        await _releaseData.ClearCache();
 
         return Ok();
     }
@@ -121,8 +99,8 @@ public class GitHubProxyController: ControllerBase
         {
             TotalDownloads = await _redis.GetCount(RedisKeyStarts),
             UniqueInstalls = await _redis.GetCount(RedisKeyUniqueInstalls),
-            ReleaseVersion = ProxyMeta.VersionMeta.From(_cachedRelease),
-            PrereleaseVersion = ProxyMeta.VersionMeta.From(_cachedPrerelease),
+            ReleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedRelease),
+            PrereleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedPrerelease),
         };
     }
 
@@ -155,59 +133,4 @@ public class GitHubProxyController: ControllerBase
             }
         }
     }
-
-    private async Task SetupReleasesAsync()
-    {
-        Signal.Reset();
-
-        _cachedPrerelease = _cachedRelease = null;
-        _cachedPrereleasesList = _cachedReleasesList = null;
-
-        using var client = new HttpClient();
-
-        var repoOwner = _configuration["GitHub:LauncherRepository:Owner"];
-        var repoName = _configuration["GitHub:LauncherRepository:Name"];
-
-        try
-        {
-            var releases = await this._github.Client.Repository.Release.GetAll(repoOwner, repoName);
-
-            if (releases == null)
-                throw new Exception("Could not get GitHub releases.");
-
-            var ordered = releases.OrderByDescending(x => x.PublishedAt);
-
-            if (ordered.First().Prerelease)
-            {
-                _cachedPrerelease = ordered.First();
-                _cachedRelease = ordered.First(x => !x.Prerelease);
-
-                _cachedPrereleasesList = await GetReleasesFileForRelease(client, _cachedPrerelease);
-                _cachedReleasesList = await GetReleasesFileForRelease(client, _cachedRelease);
-            }
-            else
-            {
-                _cachedRelease = ordered.First();
-                _cachedPrerelease = _cachedRelease;
-
-                _cachedReleasesList = await GetReleasesFileForRelease(client, ordered.First());
-                _cachedPrereleasesList = _cachedReleasesList;
-            }
-
-            _logger.LogInformation("Correctly refreshed releases");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not refresh releases");
-            throw;
-        }
-        finally
-        {
-            Signal.Set();
-        }
-    }
-
-    private static string GetDownloadUrlForRelease(Release entry, string fileName) => entry.HtmlUrl.Replace("/tag/", "/download/") + "/" + fileName;
-
-    private static async Task<string> GetReleasesFileForRelease(HttpClient client, Release entry) => await client.GetStringAsync(GetDownloadUrlForRelease(entry, "RELEASES"));
 }

@@ -13,8 +13,6 @@ public class PluginDataService
 
     private readonly HttpClient _client;
 
-    private static readonly ManualResetEvent Signal = new(true);
-
     public IReadOnlyList<PluginManifest>? PluginMaster { get; private set; }
     public DateTime LastUpdate { get; private set; }
 
@@ -28,26 +26,8 @@ public class PluginDataService
         _client = new HttpClient();
     }
 
-    public async Task EnsureOrWait()
-    {
-        if (PluginMaster == null)
-        {
-            if (!Signal.WaitOne(0))
-            {
-                Signal.WaitOne();
-            }
-            else
-            {
-                Signal.Reset();
-                await ClearCache();
-                Signal.Set();
-            }
-        }
-    }
-
     public async Task ClearCache()
     {
-        Signal.Reset();
         _logger.LogInformation("Now clearing the cache");
 
         try
@@ -142,10 +122,6 @@ public class PluginDataService
         {
             _logger.LogError(e, "Failed to clear cache");
             throw;
-        }
-        finally
-        {
-            Signal.Set();
         }
     }
 
