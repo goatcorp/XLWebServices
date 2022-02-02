@@ -68,7 +68,6 @@ public class GitHubProxyController: ControllerBase
         {
             if (!Signal.WaitOne(0))
             {
-                _logger.LogInformation("Now waiting on refresh");
                 Signal.WaitOne();
             }
             else
