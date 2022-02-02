@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
+using Octokit;
 using Prometheus;
 using XLWebServices.Services;
 
@@ -13,6 +14,7 @@ public class GitHubProxyController: ControllerBase
     private readonly ILogger<GitHubProxyController> _logger;
     private readonly IConfiguration _configuration;
     private readonly RedisService _redis;
+    private readonly GitHubService _github;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_startups", "XIVLauncher Unique Startups", "Version");
     private static readonly Counter InstallsOverTime = Metrics.CreateCounter("xl_installs", "XIVLauncher Installs");
@@ -20,8 +22,8 @@ public class GitHubProxyController: ControllerBase
     private static string? _cachedReleasesList;
     private static string? _cachedPrereleasesList;
 
-    private static ReleaseEntry? _cachedRelease;
-    private static ReleaseEntry? _cachedPrerelease;
+    private static Release? _cachedRelease;
+    private static Release? _cachedPrerelease;
 
     private static readonly Regex SemverRegex = new(@"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$", RegexOptions.Compiled);
 
@@ -30,11 +32,12 @@ public class GitHubProxyController: ControllerBase
     const string RedisKeyUniqueInstalls = "XLUniqueInstalls";
     const string RedisKeyStarts = "XLStarts";
 
-    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis)
+    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, GitHubService github)
     {
         _logger = logger;
         _configuration = configuration;
         _redis = redis;
+        _github = github;
     }
 
     [HttpGet("{track:alpha}/{file}")]
@@ -136,9 +139,9 @@ public class GitHubProxyController: ControllerBase
             public string ReleasesInfo { get; init; }
             public string Version { get; init; }
             public string ChangelogUrl { get; init; }
-            public DateTime When { get; init; }
+            public DateTime? When { get; init; }
 
-            public static VersionMeta? From(ReleaseEntry? release)
+            public static VersionMeta? From(Release? release)
             {
                 if (release == null)
                     return null;
@@ -148,7 +151,7 @@ public class GitHubProxyController: ControllerBase
                     ReleasesInfo = $"/Proxy/Update/{(release.Prerelease ? "Prerelease" : "Release")}/RELEASES",
                     Version = release.TagName,
                     ChangelogUrl = release.HtmlUrl,
-                    When = release.PublishedAt,
+                    When = release.PublishedAt?.DateTime,
                 };
             }
         }
@@ -163,21 +166,15 @@ public class GitHubProxyController: ControllerBase
 
         using var client = new HttpClient();
 
+        var repoOwner = _configuration["GitHub:PluginRepository:Owner"];
+        var repoName = _configuration["GitHub:PluginRepository:Name"];
+
         try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{_configuration["GitHub:Repository"]}/releases");
-            request.Headers.Add("Accept", "application/vnd.github.v3+json");
-            request.Headers.Add("User-Agent", "XLWebServices");
+            var releases = await this._github.Client.Repository.Release.GetAll(repoOwner, repoName);
 
-            if (_configuration["Auth:GitHubToken"] != null)
-                request.Headers.Add("Authorization", $"token {_configuration["Auth:GitHubToken"]}");
-
-            var response = await client.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-
-            var releases = await response.Content.ReadFromJsonAsync<List<ReleaseEntry>>();
             if (releases == null)
-                throw new Exception("Could not parse GitHub releases.");
+                throw new Exception("Could not get GitHub releases.");
 
             var ordered = releases.OrderByDescending(x => x.PublishedAt);
 
@@ -211,22 +208,7 @@ public class GitHubProxyController: ControllerBase
         }
     }
 
-    private static string GetDownloadUrlForRelease(ReleaseEntry entry, string fileName) => entry.HtmlUrl.Replace("/tag/", "/download/") + "/" + fileName;
+    private static string GetDownloadUrlForRelease(Release entry, string fileName) => entry.HtmlUrl.Replace("/tag/", "/download/") + "/" + fileName;
 
-    private static async Task<string> GetReleasesFileForRelease(HttpClient client, ReleaseEntry entry) => await client.GetStringAsync(GetDownloadUrlForRelease(entry, "RELEASES"));
-
-    public class ReleaseEntry
-    {
-        [JsonPropertyName("prerelease")]
-        public bool Prerelease { get; set; }
-
-        [JsonPropertyName("published_at")]
-        public DateTime PublishedAt { get; set; }
-
-        [JsonPropertyName("html_url")]
-        public string HtmlUrl { get; set; }
-
-        [JsonPropertyName("tag_name")]
-        public string TagName { get; set; }
-    }
+    private static async Task<string> GetReleasesFileForRelease(HttpClient client, Release entry) => await client.GetStringAsync(GetDownloadUrlForRelease(entry, "RELEASES"));
 }
