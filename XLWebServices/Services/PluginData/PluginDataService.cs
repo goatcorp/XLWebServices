@@ -162,6 +162,9 @@ public class PluginDataService
         {
             var desc = await GetPrDescription(commit, repoOwner, repoName);
 
+            if (desc != null && desc.Contains("nofranz"))
+                desc = null;
+
             await _redis.SetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString(),
                 new RedisService.PluginInfo
                 {
