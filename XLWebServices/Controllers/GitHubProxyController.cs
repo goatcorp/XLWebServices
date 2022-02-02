@@ -166,8 +166,8 @@ public class GitHubProxyController: ControllerBase
 
         using var client = new HttpClient();
 
-        var repoOwner = _configuration["GitHub:PluginRepository:Owner"];
-        var repoName = _configuration["GitHub:PluginRepository:Name"];
+        var repoOwner = _configuration["GitHub:LauncherRepository:Owner"];
+        var repoName = _configuration["GitHub:LauncherRepository:Name"];
 
         try
         {
