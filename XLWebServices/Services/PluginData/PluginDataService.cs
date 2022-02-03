@@ -37,7 +37,7 @@ public class PluginDataService
         }
         catch (Exception e)
         {
-            this._logger.LogError(e, "Failed to build Dalamud changelogs");
+            _logger.LogError(e, "Failed to build Dalamud changelogs");
             throw;
         }
 
@@ -138,13 +138,13 @@ public class PluginDataService
 
     private async Task BuildDalamudChangelogs()
     {
-        this._logger.LogInformation("Now getting Dalamud changelogs");
+        _logger.LogInformation("Now getting Dalamud changelogs");
 
         var repoOwner = _configuration["GitHub:DalamudRepository:Owner"];
         var repoName = _configuration["GitHub:DalamudRepository:Name"];
-        var tags = await this._github.Client.Repository.GetAllTags(repoOwner, repoName, new ApiOptions{PageSize = 100});
+        var tags = await _github.Client.Repository.GetAllTags(repoOwner, repoName, new ApiOptions{PageSize = 100});
 
-        var orderedTags = tags.Select(async x => (x, await this._github.Client.Repository.Commit.Get(repoOwner, repoName, x.Commit.Sha)))
+        var orderedTags = tags.Select(async x => (x, await _github.Client.Repository.Commit.Get(repoOwner, repoName, x.Commit.Sha)))
             .Select(t => t.Result)
             .OrderByDescending(x => x.Item2.Commit.Author.Date).ToList();
 
@@ -165,7 +165,7 @@ public class PluginDataService
                 Changes = new List<DalamudChangelog.DalamudChangelogChange>()
             };
 
-            var diff = await this._github.Client.Repository.Commit.Compare(repoOwner, repoName, nextTag.x.Commit.Sha, currentTag.x.Commit.Sha);
+            var diff = await _github.Client.Repository.Commit.Compare(repoOwner, repoName, nextTag.x.Commit.Sha, currentTag.x.Commit.Sha);
             foreach (var diffCommit in diff.Commits)
             {
                 // Exclude build commits
@@ -174,6 +174,10 @@ public class PluginDataService
 
                 // Exclude PR merges
                 if (diffCommit.Commit.Message.StartsWith("Merge pull request"))
+                    continue;
+
+                // Exclude merge commits
+                if (diffCommit.Commit.Message.StartsWith("Merge branch"))
                     continue;
 
                 changelog.Changes.Add(new DalamudChangelog.DalamudChangelogChange
@@ -190,7 +194,7 @@ public class PluginDataService
 
         this.DalamudChangelogs = changelogs;
 
-        this._logger.LogInformation("Got {Count} Dalamud changelogs", this.DalamudChangelogs.Count);
+        _logger.LogInformation("Got {Count} Dalamud changelogs", this.DalamudChangelogs.Count);
     }
 
     public class DalamudChangelog
