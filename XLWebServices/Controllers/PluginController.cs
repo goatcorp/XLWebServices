@@ -44,7 +44,7 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<Dictionary<string, long>> GetDownloadCounts()
+    public async Task<Dictionary<string, long>> DownloadCounts()
     {
         var counts = new Dictionary<string, long>();
         foreach (var plugin in _pluginData.PluginMaster!)
@@ -56,7 +56,7 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetPluginMaster()
+    public IActionResult PluginMaster()
     {
         return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
         {
@@ -100,7 +100,7 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IReadOnlyList<PluginDataService.DalamudChangelog> GetCoreChangelog()
+    public IReadOnlyList<PluginDataService.DalamudChangelog> CoreChangelog()
     {
         return _pluginData.DalamudChangelogs;
     }
