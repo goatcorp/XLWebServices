@@ -99,6 +99,12 @@ public class PluginController : ControllerBase
         };
     }
 
+    [HttpGet]
+    public IReadOnlyList<PluginDataService.DalamudChangelog> GetCoreChangelog()
+    {
+        return _pluginData.DalamudChangelogs;
+    }
+
     public class PluginMeta
     {
         public int NumPlugins { get; init; }
