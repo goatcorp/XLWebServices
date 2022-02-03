@@ -180,10 +180,13 @@ public class PluginDataService
                 if (diffCommit.Commit.Message.StartsWith("Merge branch"))
                     continue;
 
+                // Get first line
+                var firstLine = diffCommit.Commit.Message.Split('\r', '\n')[0];
+
                 changelog.Changes.Add(new DalamudChangelog.DalamudChangelogChange
                 {
                     Author = diffCommit.Commit.Author.Name,
-                    Message = diffCommit.Commit.Message,
+                    Message = firstLine,
                     Sha = diffCommit.Sha,
                     Date = diffCommit.Commit.Author.Date.DateTime,
                 });
