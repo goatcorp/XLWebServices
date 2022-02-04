@@ -14,23 +14,26 @@ public class PluginController : ControllerBase
     private readonly RedisService _redis;
     private readonly IConfiguration _configuration;
     private readonly PluginDataService _pluginData;
+    private readonly FileCacheService _cache;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_plugindl", "XIVLauncher Plugin Downloads", "Name", "Testing");
 
     private const string RedisCumulativeKey = "XLPluginDlCumulative";
 
-    public PluginController(ILogger<PluginController> logger, RedisService redis, IConfiguration configuration, PluginDataService pluginData)
+    public PluginController(ILogger<PluginController> logger, RedisService redis, IConfiguration configuration, PluginDataService pluginData, FileCacheService cache)
     {
         _logger = logger;
         _redis = redis;
         _configuration = configuration;
         _pluginData = pluginData;
+        _cache = cache;
     }
 
     [HttpGet("{internalName}")]
     public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "branch")] string branch = "master", [FromQuery(Name = "isTesting")] bool isTesting = false)
     {
-        if (_pluginData.PluginMaster!.All(x => x.InternalName != internalName))
+        var manifest = this._pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
+        if (manifest == null)
             return BadRequest("Invalid plugin");
 
         DownloadsOverTime.WithLabels(internalName.ToLower(), isTesting.ToString()).Inc();
@@ -40,7 +43,10 @@ public class PluginController : ControllerBase
 
         const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
         var baseUrl = isTesting ? "testing" : "plugins";
-        return new RedirectResult(string.Format(githubPath, branch, baseUrl, internalName));
+        var cachedFile = await this._cache.CacheFile(internalName, manifest.AssemblyVersion.ToString(),
+            string.Format(githubPath, branch, baseUrl, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+
+        return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
     }
 
     [HttpGet]

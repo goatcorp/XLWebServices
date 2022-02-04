@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddSingleton<RedisService>();
 builder.Services.AddSingleton<GitHubService>();
+builder.Services.AddSingleton<FileCacheService>();
 builder.Services.AddSingleton<PluginDataService>();
 builder.Services.AddSingleton<ReleaseDataService>();
 

@@ -15,6 +15,7 @@ public class GitHubProxyController: ControllerBase
     private readonly IConfiguration _configuration;
     private readonly RedisService _redis;
     private readonly ReleaseDataService _releaseData;
+    private readonly FileCacheService _cache;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_startups", "XIVLauncher Unique Startups", "Version");
     private static readonly Counter InstallsOverTime = Metrics.CreateCounter("xl_installs", "XIVLauncher Installs");
@@ -24,12 +25,13 @@ public class GitHubProxyController: ControllerBase
     const string RedisKeyUniqueInstalls = "XLUniqueInstalls";
     const string RedisKeyStarts = "XLStarts";
 
-    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, ReleaseDataService releaseData)
+    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, ReleaseDataService releaseData, FileCacheService cache)
     {
         _logger = logger;
         _configuration = configuration;
         _redis = redis;
         _releaseData = releaseData;
+        _cache = cache;
     }
 
     [HttpGet("{track:alpha}/{file}")]
@@ -68,12 +70,32 @@ public class GitHubProxyController: ControllerBase
         }
         else
         {
+            var allowedFileNames = new[] {
+                "Setup.exe",
+                $"XIVLauncher-{_releaseData.CachedRelease.TagName}-delta.nupkg",
+                $"XIVLauncher-{_releaseData.CachedRelease.TagName}-full.nupkg",
+                $"XIVLauncher-{_releaseData.CachedPrerelease.TagName}-delta.nupkg",
+                $"XIVLauncher-{_releaseData.CachedPrerelease.TagName}-full.nupkg",
+            };
+
+            if (!allowedFileNames.Contains(file))
+                return this.BadRequest("Not valid filename");
+
             switch (track)
             {
                 case "Release":
-                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedRelease, file));
+                {
+                    var url = ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedRelease, file);
+                    var cachedFile = await _cache.CacheFile(file,  _releaseData.CachedRelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
+                    return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
+                }
+
                 case "Prerelease":
-                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedPrerelease, file));
+                {
+                    var url = ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedPrerelease, file);
+                    var cachedFile = await _cache.CacheFile(file,  _releaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
+                    return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
+                }
             }
         }
 
