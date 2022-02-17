@@ -81,6 +81,7 @@ public class GitHubProxyController: ControllerBase
             if (!allowedFileNames.Contains(file))
                 return this.BadRequest("Not valid filename");
 
+            /*
             switch (track)
             {
                 case "Release":
@@ -96,6 +97,15 @@ public class GitHubProxyController: ControllerBase
                     var cachedFile = await _cache.CacheFile(file,  _releaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
                     return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
                 }
+            }
+            */
+
+            switch (track)
+            {
+                case "Release":
+                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedRelease, file));
+                case "Prerelease":
+                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedPrerelease, file));
             }
         }
 
@@ -137,7 +147,8 @@ public class GitHubProxyController: ControllerBase
         {
             public string ReleasesInfo { get; init; }
             public string Version { get; init; }
-            public string ChangelogUrl { get; init; }
+            public string Url { get; init; }
+            public string Changelog { get; init; }
             public DateTime? When { get; init; }
 
             public static VersionMeta? From(Release? release)
@@ -149,7 +160,8 @@ public class GitHubProxyController: ControllerBase
                 {
                     ReleasesInfo = $"/Proxy/Update/{(release.Prerelease ? "Prerelease" : "Release")}/RELEASES",
                     Version = release.TagName,
-                    ChangelogUrl = release.HtmlUrl,
+                    Url = release.HtmlUrl,
+                    Changelog = release.Body,
                     When = release.PublishedAt?.DateTime,
                 };
             }
