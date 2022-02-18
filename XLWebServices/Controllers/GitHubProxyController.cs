@@ -131,8 +131,8 @@ public class GitHubProxyController: ControllerBase
         {
             TotalDownloads = await _redis.GetCount(RedisKeyStarts),
             UniqueInstalls = await _redis.GetCount(RedisKeyUniqueInstalls),
-            ReleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedRelease),
-            PrereleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedPrerelease),
+            ReleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedRelease, _releaseData.ReleaseChangelog),
+            PrereleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedPrerelease, _releaseData.PrereleaseChangelog),
         };
     }
 
@@ -151,7 +151,7 @@ public class GitHubProxyController: ControllerBase
             public string Changelog { get; init; }
             public DateTime? When { get; init; }
 
-            public static VersionMeta? From(Release? release)
+            public static VersionMeta? From(Release? release, string changelog)
             {
                 if (release == null)
                     return null;
@@ -161,7 +161,7 @@ public class GitHubProxyController: ControllerBase
                     ReleasesInfo = $"/Proxy/Update/{(release.Prerelease ? "Prerelease" : "Release")}/RELEASES",
                     Version = release.TagName,
                     Url = release.HtmlUrl,
-                    Changelog = release.Body,
+                    Changelog = changelog,
                     When = release.PublishedAt?.DateTime,
                 };
             }

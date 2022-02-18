@@ -15,6 +15,9 @@ public class ReleaseDataService
     public Release CachedRelease { get; private set; }
     public Release CachedPrerelease { get; private set; }
 
+    public string ReleaseChangelog { get; set; }
+    public string PrereleaseChangelog { get; set; }
+
     public ReleaseDataService(ILogger<ReleaseDataService> logger, GitHubService github, IConfiguration configuration, FileCacheService cache)
     {
         _logger = logger;
@@ -63,6 +66,9 @@ public class ReleaseDataService
 
             await PrecacheReleaseFiles(CachedRelease);
             await PrecacheReleaseFiles(CachedPrerelease);
+
+            ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
+            PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
 
             _logger.LogInformation("Correctly refreshed releases");
         }
