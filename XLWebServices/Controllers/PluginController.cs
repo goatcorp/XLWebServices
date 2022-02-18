@@ -42,9 +42,9 @@ public class PluginController : ControllerBase
         await _redis.IncrementCount(RedisCumulativeKey);
 
         const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
-        var baseUrl = isTesting ? "testing" : "plugins";
-        var cachedFile = await this._cache.CacheFile(internalName, manifest.AssemblyVersion.ToString(),
-            string.Format(githubPath, branch, baseUrl, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+        var folder = isTesting ? "testing" : "plugins";
+        var cachedFile = await this._cache.CacheFile(internalName, $"{manifest.AssemblyVersion}-{folder}",
+            string.Format(githubPath, branch, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
         return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
     }
