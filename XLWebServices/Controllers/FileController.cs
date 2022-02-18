@@ -27,7 +27,7 @@ public class FileController : ControllerBase
         var contentType = file.Value.ContentType;
         contentType ??= "application/octet-stream";
 
-        return File(file.Value.Data, contentType);
+        return File(file.Value.Data, contentType, file.Value.OriginalName);
     }
 
     [HttpGet]
