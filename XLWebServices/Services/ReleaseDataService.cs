@@ -45,24 +45,39 @@ public class ReleaseDataService
             if (releases == null)
                 throw new Exception("Could not get GitHub releases.");
 
-            var ordered = releases.OrderByDescending(x => x.PublishedAt);
+            var ordered = releases.OrderByDescending(x => x.PublishedAt).ToArray();
 
+            Release newPrerelease, newRelease;
+            string newPrereleaseFile, newReleaseFile;
             if (ordered.First().Prerelease)
             {
-                this.CachedPrerelease = ordered.First();
-                this.CachedRelease = ordered.First(x => !x.Prerelease);
+                newPrerelease = ordered.First();
+                newRelease = ordered.First(x => !x.Prerelease);
 
-                this.CachedPrereleasesList = await GetReleasesFileForRelease(client, this.CachedPrerelease);
-                this.CachedReleasesList = await GetReleasesFileForRelease(client, this.CachedRelease);
+                newPrereleaseFile = await GetReleasesFileForRelease(client, this.CachedPrerelease);
+                newReleaseFile = await GetReleasesFileForRelease(client, this.CachedRelease);
             }
             else
             {
-                this.CachedRelease = ordered.First();
-                this.CachedPrerelease = this.CachedRelease;
+                newRelease = ordered.First();
+                newPrerelease = this.CachedRelease;
 
-                this.CachedReleasesList = await GetReleasesFileForRelease(client, ordered.First());
-                this.CachedPrereleasesList = this.CachedReleasesList;
+                newReleaseFile = await GetReleasesFileForRelease(client, ordered.First());
+                newPrereleaseFile = this.CachedReleasesList;
             }
+
+            var releaseTagValid = await CheckTagSignature(repoOwner, repoName, newRelease.TagName);
+            var prereleaseTagValid = await CheckTagSignature(repoOwner, repoName, newPrerelease.TagName);
+            if (!releaseTagValid || !prereleaseTagValid)
+            {
+                _logger.LogError("Invalid tag signature for release or prerelease");
+                return;
+            }
+
+            this.CachedRelease = newRelease;
+            this.CachedPrerelease = newPrerelease;
+            this.CachedReleasesList = newReleaseFile;
+            this.CachedPrereleasesList = newPrereleaseFile;
 
             await PrecacheReleaseFiles(CachedRelease);
             await PrecacheReleaseFiles(CachedPrerelease);
@@ -77,6 +92,31 @@ public class ReleaseDataService
             _logger.LogError(ex, "Could not refresh releases");
             throw;
         }
+    }
+
+    private async Task<bool> CheckTagSignature(string repoOwner, string repoName, string tagName)
+    {
+        var gitTag = await this._github.Client.Git.Tag.Get(repoOwner, repoName, tagName);
+
+        if (gitTag == null)
+        {
+            _logger.LogError("Couldn't find tag for sig verification: {TagName}", tagName);
+            return false;
+        }
+
+        if (!gitTag.Verification.Verified)
+        {
+            _logger.LogError("Tag was not verified: {TagName}", tagName);
+            return false;
+        }
+
+        if (gitTag.Verification.Signature != this._configuration["TagSig"])
+        {
+            _logger.LogError("Tag was not signed by the correct signer: {TagName}, {Sig}", tagName, gitTag.Verification.Signature);
+            return false;
+        }
+
+        return true;
     }
 
     private async Task PrecacheReleaseFiles(Release release)
