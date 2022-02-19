@@ -76,12 +76,12 @@ public class GitHubProxyController: ControllerBase
                 $"XIVLauncher-{_releaseData.CachedRelease.TagName}-full.nupkg",
                 $"XIVLauncher-{_releaseData.CachedPrerelease.TagName}-delta.nupkg",
                 $"XIVLauncher-{_releaseData.CachedPrerelease.TagName}-full.nupkg",
+                "CHANGELOG.txt",
             };
 
             if (!allowedFileNames.Contains(file))
                 return this.BadRequest("Not valid filename");
 
-            /*
             switch (track)
             {
                 case "Release":
@@ -97,15 +97,6 @@ public class GitHubProxyController: ControllerBase
                     var cachedFile = await _cache.CacheFile(file,  _releaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
                     return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
                 }
-            }
-            */
-
-            switch (track)
-            {
-                case "Release":
-                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedRelease, file));
-                case "Prerelease":
-                    return Redirect(ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedPrerelease, file));
             }
         }
 
