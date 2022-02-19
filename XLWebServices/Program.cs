@@ -11,6 +11,7 @@ builder.Services.AddSingleton<GitHubService>();
 builder.Services.AddSingleton<FileCacheService>();
 builder.Services.AddSingleton<PluginDataService>();
 builder.Services.AddSingleton<ReleaseDataService>();
+builder.Services.AddSingleton<DiscordHookService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
