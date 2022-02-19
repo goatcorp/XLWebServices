@@ -91,6 +91,7 @@ public class PluginController : ControllerBase
             return BadRequest();
 
         await _pluginData.ClearCache();
+        _cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
 
         return Ok();
     }
