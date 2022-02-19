@@ -43,7 +43,8 @@ public class PluginController : ControllerBase
 
         const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
         var folder = isTesting ? "testing" : "plugins";
-        var cachedFile = await this._cache.CacheFile(internalName, $"{manifest.AssemblyVersion}-{folder}",
+        var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
+        var cachedFile = await this._cache.CacheFile(internalName, $"{version}-{folder}",
             string.Format(githubPath, branch, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
         return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
