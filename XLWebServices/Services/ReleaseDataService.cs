@@ -8,6 +8,7 @@ public class ReleaseDataService
     private readonly GitHubService _github;
     private readonly IConfiguration _configuration;
     private readonly FileCacheService _cache;
+    private readonly DiscordHookService _discord;
 
     public string CachedReleasesList { get; private set; }
     public string CachedPrereleasesList { get; private set; }
@@ -18,12 +19,13 @@ public class ReleaseDataService
     public string ReleaseChangelog { get; set; }
     public string PrereleaseChangelog { get; set; }
 
-    public ReleaseDataService(ILogger<ReleaseDataService> logger, GitHubService github, IConfiguration configuration, FileCacheService cache)
+    public ReleaseDataService(ILogger<ReleaseDataService> logger, GitHubService github, IConfiguration configuration, FileCacheService cache, DiscordHookService discord)
     {
         _logger = logger;
         _github = github;
         _configuration = configuration;
         _cache = cache;
+        _discord = discord;
     }
 
     public async Task ClearCache()
@@ -34,9 +36,6 @@ public class ReleaseDataService
 
         var repoOwner = _configuration["GitHub:LauncherRepository:Owner"];
         var repoName = _configuration["GitHub:LauncherRepository:Name"];
-
-        var previousRelease = CachedRelease;
-        var previousPrerelease = CachedPrerelease;
 
         try
         {
@@ -54,16 +53,16 @@ public class ReleaseDataService
                 newPrerelease = ordered.First();
                 newRelease = ordered.First(x => !x.Prerelease);
 
-                newPrereleaseFile = await GetReleasesFileForRelease(client, this.CachedPrerelease);
-                newReleaseFile = await GetReleasesFileForRelease(client, this.CachedRelease);
+                newPrereleaseFile = await GetReleasesFileForRelease(client, newPrerelease);
+                newReleaseFile = await GetReleasesFileForRelease(client, newRelease);
             }
             else
             {
                 newRelease = ordered.First();
-                newPrerelease = this.CachedRelease;
+                newPrerelease = newRelease;
 
                 newReleaseFile = await GetReleasesFileForRelease(client, ordered.First());
-                newPrereleaseFile = this.CachedReleasesList;
+                newPrereleaseFile = newReleaseFile;
             }
 
             var releaseTagValid = await CheckTagSignature(repoOwner, repoName, newRelease.TagName);
@@ -71,6 +70,7 @@ public class ReleaseDataService
             if (!releaseTagValid || !prereleaseTagValid)
             {
                 _logger.LogError("Invalid tag signature for release or prerelease");
+                await _discord.SendError("Invalid tag signature for release or prerelease!", "Tags not signed");
                 return;
             }
 
@@ -85,11 +85,14 @@ public class ReleaseDataService
             ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
             PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
 
+            await this._discord.SendSuccess($"Release: {CachedRelease.TagName}({CachedRelease.TargetCommitish})\nPrerelease: {CachedPrerelease.TagName}({CachedPrerelease.TargetCommitish})", "XIVLauncher releases updated!");
+
             _logger.LogInformation("Correctly refreshed releases");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not refresh releases");
+            await _discord.SendError("Could not refresh releases!", "XIVLaunche releases");
             throw;
         }
     }

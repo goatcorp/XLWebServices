@@ -10,6 +10,7 @@ public class PluginDataService
     private readonly GitHubService _github;
     private readonly IConfiguration _configuration;
     private readonly RedisService _redis;
+    private readonly DiscordHookService _discord;
 
     private readonly HttpClient _client;
 
@@ -17,12 +18,13 @@ public class PluginDataService
     public IReadOnlyList<DalamudChangelog> DalamudChangelogs { get; private set; }
     public DateTime LastUpdate { get; private set; }
 
-    public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, RedisService redis)
+    public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, RedisService redis, DiscordHookService discord)
     {
         _logger = logger;
         _github = github;
         _configuration = configuration;
         _redis = redis;
+        _discord = discord;
 
         _client = new HttpClient();
     }
@@ -128,10 +130,13 @@ public class PluginDataService
             LastUpdate = DateTime.Now;
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
+            await this._discord.SendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded",
+                "PluginMaster updated");
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to refetch plugins");
+            await this._discord.SendError("Failed to reload plugins", "PluginMaster error");
             throw;
         }
     }
