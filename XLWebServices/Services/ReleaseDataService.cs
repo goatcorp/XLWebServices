@@ -81,13 +81,13 @@ public class ReleaseDataService
                 return;
             }
 
-            ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
-            PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
-
             this.CachedRelease = newRelease;
             this.CachedPrerelease = newPrerelease;
             this.CachedReleasesList = newReleaseFile;
             this.CachedPrereleasesList = newPrereleaseFile;
+
+            ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
+            PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
 
             await PrecacheReleaseFiles(CachedRelease);
             await PrecacheReleaseFiles(CachedPrerelease);
@@ -102,7 +102,7 @@ public class ReleaseDataService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not refresh releases");
-            await _discord.SendError("Could not refresh releases!", "XIVLaunche releases");
+            await _discord.SendError("Could not refresh releases!", "XIVLauncher releases");
             throw;
         }
     }
