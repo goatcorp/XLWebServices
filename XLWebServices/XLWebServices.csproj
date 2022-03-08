@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <PackageReference Include="Discord.Net.Webhook" Version="3.3.2" />
+        <PackageReference Include="LibGit2Sharp" Version="0.27.0-preview-0175" />
         <PackageReference Include="prometheus-net" Version="5.0.2" />
         <PackageReference Include="prometheus-net.AspNetCore" Version="5.0.2" />
         <PackageReference Include="StackExchange.Redis" Version="2.2.88" />

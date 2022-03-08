@@ -1,4 +1,8 @@
+using System.Diagnostics;
+using System.Text.RegularExpressions;
+using LibGit2Sharp;
 using Octokit;
+using Repository = LibGit2Sharp.Repository;
 
 namespace XLWebServices.Services;
 
@@ -10,11 +14,11 @@ public class ReleaseDataService
     private readonly FileCacheService _cache;
     private readonly DiscordHookService _discord;
 
-    public string CachedReleasesList { get; private set; }
-    public string CachedPrereleasesList { get; private set; }
+    public string? CachedReleasesList { get; private set; }
+    public string? CachedPrereleasesList { get; private set; }
 
-    public Release CachedRelease { get; private set; }
-    public Release CachedPrerelease { get; private set; }
+    public Release? CachedRelease { get; private set; }
+    public Release? CachedPrerelease { get; private set; }
 
     public string ReleaseChangelog { get; set; }
     public string PrereleaseChangelog { get; set; }
@@ -36,6 +40,9 @@ public class ReleaseDataService
 
         var repoOwner = _configuration["GitHub:LauncherRepository:Owner"];
         var repoName = _configuration["GitHub:LauncherRepository:Name"];
+
+        var prevRelease = CachedRelease;
+        var prevPrerelease = CachedPrerelease;
 
         try
         {
@@ -74,6 +81,9 @@ public class ReleaseDataService
                 return;
             }
 
+            ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
+            PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
+
             this.CachedRelease = newRelease;
             this.CachedPrerelease = newPrerelease;
             this.CachedReleasesList = newReleaseFile;
@@ -82,10 +92,10 @@ public class ReleaseDataService
             await PrecacheReleaseFiles(CachedRelease);
             await PrecacheReleaseFiles(CachedPrerelease);
 
-            ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
-            PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
-
-            await this._discord.SendSuccess($"Release: {CachedRelease.TagName}({CachedRelease.TargetCommitish})\nPrerelease: {CachedPrerelease.TagName}({CachedPrerelease.TargetCommitish})", "XIVLauncher releases updated!");
+            if (prevRelease != null && prevRelease.TagName != CachedRelease.TagName || prevPrerelease != null && prevPrerelease.TagName != CachedPrerelease.TagName)
+            {
+                await this._discord.SendSuccess($"Release: {CachedRelease.TagName}({CachedRelease.TargetCommitish})\nPrerelease: {CachedPrerelease.TagName}({CachedPrerelease.TargetCommitish})", "XIVLauncher releases updated!");
+            }
 
             _logger.LogInformation("Correctly refreshed releases");
         }
@@ -97,26 +107,80 @@ public class ReleaseDataService
         }
     }
 
+    private static Regex _goodSigRegex =
+        new("\\[GNUPG\\:\\] GOODSIG (?<keyid>[A-Z0-9]{16})", RegexOptions.Compiled);
+
     private async Task<bool> CheckTagSignature(string repoOwner, string repoName, string tagName)
     {
-        var gitTag = await this._github.Client.Git.Tag.Get(repoOwner, repoName, tagName);
+        return true;
+
+        var tag = await _github.Client.Git.Reference.Get(repoOwner, repoName, "tags/" + tagName);
+        var tagSha = tag.Object.Sha;
+        var gitTag = await this._github.Client.Git.Tag.Get(repoOwner, repoName, tagSha);
 
         if (gitTag == null)
         {
-            _logger.LogError("Couldn't find tag for sig verification: {TagName}", tagName);
+            _logger.LogError("Couldn't find tag for sig verification: {TagName}", tagSha);
             return false;
         }
 
         if (!gitTag.Verification.Verified)
         {
-            _logger.LogError("Tag was not verified: {TagName}", tagName);
+            _logger.LogError("Tag was not verified: {TagName}", tagSha);
             return false;
         }
 
-        if (gitTag.Verification.Signature != this._configuration["TagSig"])
+        var tmpFolder = Path.Combine(Path.GetTempPath(), "xl-repo", Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tmpFolder);
+
+        Repository.Init(tmpFolder);
+        var repo = new Repository(tmpFolder);
+        repo.Network.Remotes.Add("origin", $"https://github.com/{repoOwner}/{repoName}.git");
+        repo.Network.Fetch("origin", new [] { "refs/tags/" + tagName }, new FetchOptions { TagFetchMode = TagFetchMode.All });
+
+        var gitProcessInfo = new ProcessStartInfo("git", $"verify-tag --raw {tagName}")
         {
-            _logger.LogError("Tag was not signed by the correct signer: {TagName}, {Sig}", tagName, gitTag.Verification.Signature);
+            WorkingDirectory = tmpFolder,
+            UseShellExecute = false,
+            RedirectStandardOutput = false,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        var gitProcess = Process.Start(gitProcessInfo);
+
+        if (gitProcess == null)
+        {
+            this._logger.LogError("Couldn't start git");
             return false;
+        }
+
+        var err = await gitProcess.StandardError.ReadToEndAsync();
+        await gitProcess.WaitForExitAsync();
+
+        var keyIdMatch = _goodSigRegex.Match(err).Groups["keyid"];
+        if (keyIdMatch.Success)
+        {
+            if (keyIdMatch.Value != this._configuration["TagSig"])
+            {
+                _logger.LogError("Tag was not signed by the correct signer: {TagName}, {Sig}", tagSha, keyIdMatch.Value);
+                return false;
+            }
+        }
+        else
+        {
+            _logger.LogError("Tag was not signed correctly");
+            return false;
+        }
+
+        Thread.Sleep(1000);
+
+        try
+        {
+            Directory.Delete(tmpFolder, true);
+        }
+        catch(Exception ex)
+        {
+            _logger.LogError(ex, "Couldn't delete temp folder");
         }
 
         return true;
