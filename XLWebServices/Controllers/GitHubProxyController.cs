@@ -58,6 +58,11 @@ public class GitHubProxyController: ControllerBase
             await _redis.IncrementCount(RedisKeyUniqueInstalls);
         }
 
+        if (track == "Release" && !_configuration["ReleaseEnabled"].ToLower().Equals("true"))
+        {
+            return Conflict("Release track is disabled");
+        }
+
         if (file == "RELEASES")
         {
             switch (track)
