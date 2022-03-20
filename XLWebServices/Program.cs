@@ -7,11 +7,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddSingleton<RedisService>();
+builder.Services.AddSingleton<DiscordHookService>();
 builder.Services.AddSingleton<GitHubService>();
 builder.Services.AddSingleton<FileCacheService>();
 builder.Services.AddSingleton<PluginDataService>();
 builder.Services.AddSingleton<ReleaseDataService>();
-builder.Services.AddSingleton<DiscordHookService>();
+builder.Services.AddSingleton<AssetCacheService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -50,10 +51,15 @@ app.UseEndpoints(endpoints =>
 app.Services.GetRequiredService<RedisService>();
 app.Services.GetRequiredService<GitHubService>();
 
+var acs = app.Services.GetRequiredService<AssetCacheService>();
+await acs.ClearCache();
+
+/*
 var pds = app.Services.GetRequiredService<PluginDataService>();
 await pds.ClearCache();
 
 var rds = app.Services.GetRequiredService<ReleaseDataService>();
 await rds.ClearCache();
+*/
 
 app.Run();
