@@ -41,10 +41,10 @@ public class DalamudReleaseDataService
         var repo =
             $"https://raw.githubusercontent.com/{this.config["GitHub:DistribRepository:Owner"]}/{this.config["GitHub:DistribRepository:Name"]}";
 
-        var releaseFile = $"{repo}/master/version?={DateTime.UtcNow:yyyyMMddHHmmss}";
-        var stgFile = $"{repo}/master/stg/version?={DateTime.UtcNow:yyyyMMddHHmmss}";
-        var releaseZip = $"{repo}/master/latest.zip?={DateTime.UtcNow:yyyyMMddHHmmss}";
-        var stgZip = $"{repo}/master/stg/latest.zip?={DateTime.UtcNow:yyyyMMddHHmmss}";
+        var releaseFile = $"{repo}/master/version";
+        var stgFile = $"{repo}/master/stg/version";
+        var releaseZip = $"{repo}/master/latest.zip";
+        var stgZip = $"{repo}/master/stg/latest.zip";
 
         using var client = new HttpClient();
         client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
