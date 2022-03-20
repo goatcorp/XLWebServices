@@ -14,18 +14,20 @@ public class PluginController : ControllerBase
     private readonly RedisService _redis;
     private readonly IConfiguration _configuration;
     private readonly PluginDataService _pluginData;
+    private readonly DalamudReleaseDataService _releaseData;
     private readonly FileCacheService _cache;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_plugindl", "XIVLauncher Plugin Downloads", "Name", "Testing");
 
     private const string RedisCumulativeKey = "XLPluginDlCumulative";
 
-    public PluginController(ILogger<PluginController> logger, RedisService redis, IConfiguration configuration, PluginDataService pluginData, FileCacheService cache)
+    public PluginController(ILogger<PluginController> logger, RedisService redis, IConfiguration configuration, PluginDataService pluginData, DalamudReleaseDataService dalamudReleaseData, FileCacheService cache)
     {
         _logger = logger;
         _redis = redis;
         _configuration = configuration;
         _pluginData = pluginData;
+        _releaseData = dalamudReleaseData;
         _cache = cache;
     }
 
@@ -108,9 +110,9 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IReadOnlyList<PluginDataService.DalamudChangelog> CoreChangelog()
+    public IReadOnlyList<DalamudReleaseDataService.DalamudChangelog> CoreChangelog()
     {
-        return _pluginData.DalamudChangelogs;
+        return this._releaseData.DalamudChangelogs;
     }
 
     public class PluginMeta

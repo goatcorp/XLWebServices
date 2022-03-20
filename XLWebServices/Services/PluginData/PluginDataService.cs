@@ -15,7 +15,6 @@ public class PluginDataService
     private readonly HttpClient _client;
 
     public IReadOnlyList<PluginManifest>? PluginMaster { get; private set; }
-    public IReadOnlyList<DalamudChangelog> DalamudChangelogs { get; private set; }
     public DateTime LastUpdate { get; private set; }
 
     public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, RedisService redis, DiscordHookService discord)
@@ -32,16 +31,6 @@ public class PluginDataService
     public async Task ClearCache()
     {
         _logger.LogInformation("Now clearing the cache");
-
-        try
-        {
-            await this.BuildDalamudChangelogs();
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to build Dalamud changelogs");
-            throw;
-        }
 
         try
         {
@@ -138,85 +127,6 @@ public class PluginDataService
             _logger.LogError(e, "Failed to refetch plugins");
             await this._discord.SendError("Failed to reload plugins", "PluginMaster error");
             throw;
-        }
-    }
-
-    private async Task BuildDalamudChangelogs()
-    {
-        _logger.LogInformation("Now getting Dalamud changelogs");
-
-        var repoOwner = _configuration["GitHub:DalamudRepository:Owner"];
-        var repoName = _configuration["GitHub:DalamudRepository:Name"];
-        var tags = await _github.Client.Repository.GetAllTags(repoOwner, repoName, new ApiOptions{PageSize = 100});
-
-        var orderedTags = tags.Select(async x => (x, await _github.Client.Repository.Commit.Get(repoOwner, repoName, x.Commit.Sha)))
-            .Select(t => t.Result)
-            .OrderByDescending(x => x.Item2.Commit.Author.Date).ToList();
-
-        var changelogs = new List<DalamudChangelog>();
-
-        for (var i = 0; i < orderedTags.Count; i++)
-        {
-            var currentTag = orderedTags[i];
-            if (i + 1 >= orderedTags.Count)
-                break;
-
-            var nextTag = orderedTags[i + 1];
-
-            var changelog = new DalamudChangelog
-            {
-                Version = currentTag.x.Name,
-                Date = currentTag.Item2.Commit.Author.Date.DateTime,
-                Changes = new List<DalamudChangelog.DalamudChangelogChange>()
-            };
-
-            var diff = await _github.Client.Repository.Commit.Compare(repoOwner, repoName, nextTag.x.Commit.Sha, currentTag.x.Commit.Sha);
-            foreach (var diffCommit in diff.Commits)
-            {
-                // Exclude build commits
-                if (diffCommit.Commit.Message.StartsWith("build:"))
-                    continue;
-
-                // Exclude PR merges
-                if (diffCommit.Commit.Message.StartsWith("Merge pull request"))
-                    continue;
-
-                // Exclude merge commits
-                if (diffCommit.Commit.Message.StartsWith("Merge branch"))
-                    continue;
-
-                // Get first line
-                var firstLine = diffCommit.Commit.Message.Split('\r', '\n')[0];
-
-                changelog.Changes.Add(new DalamudChangelog.DalamudChangelogChange
-                {
-                    Author = diffCommit.Commit.Author.Name,
-                    Message = firstLine,
-                    Sha = diffCommit.Sha,
-                    Date = diffCommit.Commit.Author.Date.DateTime,
-                });
-            }
-
-            changelogs.Add(changelog);
-        }
-
-        this.DalamudChangelogs = changelogs;
-
-        _logger.LogInformation("Got {Count} Dalamud changelogs", this.DalamudChangelogs.Count);
-    }
-
-    public class DalamudChangelog
-    {
-        public DateTime Date { get; set; }
-        public string Version { get; set; }
-        public List<DalamudChangelogChange> Changes { get; set; }
-
-        public class DalamudChangelogChange
-        {
-            public string Message { get; set; }
-            public string Author { get; set; }
-            public string Sha { get; set; }
-            public DateTime Date { get; set; }
         }
     }
 

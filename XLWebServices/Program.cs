@@ -11,8 +11,11 @@ builder.Services.AddSingleton<DiscordHookService>();
 builder.Services.AddSingleton<GitHubService>();
 builder.Services.AddSingleton<FileCacheService>();
 builder.Services.AddSingleton<PluginDataService>();
-builder.Services.AddSingleton<ReleaseDataService>();
+builder.Services.AddSingleton<LauncherReleaseDataService>();
 builder.Services.AddSingleton<AssetCacheService>();
+builder.Services.AddSingleton<DalamudReleaseDataService>();
+
+builder.Services.AddResponseCaching();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -39,6 +42,8 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 
 app.UseRouting();
 
+app.UseResponseCaching();
+
 app.UseAuthorization();
 
 app.UseEndpoints(endpoints =>
@@ -54,12 +59,13 @@ app.Services.GetRequiredService<GitHubService>();
 var acs = app.Services.GetRequiredService<AssetCacheService>();
 await acs.ClearCache();
 
-/*
+var drs = app.Services.GetRequiredService<DalamudReleaseDataService>();
+await drs.ClearCache();
+
 var pds = app.Services.GetRequiredService<PluginDataService>();
 await pds.ClearCache();
 
-var rds = app.Services.GetRequiredService<ReleaseDataService>();
+var rds = app.Services.GetRequiredService<LauncherReleaseDataService>();
 await rds.ClearCache();
-*/
 
 app.Run();

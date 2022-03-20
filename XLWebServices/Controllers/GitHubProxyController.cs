@@ -14,7 +14,7 @@ public class GitHubProxyController: ControllerBase
     private readonly ILogger<GitHubProxyController> _logger;
     private readonly IConfiguration _configuration;
     private readonly RedisService _redis;
-    private readonly ReleaseDataService _releaseData;
+    private readonly LauncherReleaseDataService _launcherReleaseData;
     private readonly FileCacheService _cache;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_startups", "XIVLauncher Unique Startups", "Version");
@@ -25,12 +25,12 @@ public class GitHubProxyController: ControllerBase
     const string RedisKeyUniqueInstalls = "XLUniqueInstalls";
     const string RedisKeyStarts = "XLStarts";
 
-    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, ReleaseDataService releaseData, FileCacheService cache)
+    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, LauncherReleaseDataService launcherReleaseData, FileCacheService cache)
     {
         _logger = logger;
         _configuration = configuration;
         _redis = redis;
-        _releaseData = releaseData;
+        this._launcherReleaseData = launcherReleaseData;
         _cache = cache;
     }
 
@@ -68,19 +68,19 @@ public class GitHubProxyController: ControllerBase
             switch (track)
             {
                 case "Release":
-                    return Content(_releaseData.CachedReleasesList);
+                    return Content(this._launcherReleaseData.CachedReleasesList);
                 case "Prerelease":
-                    return Content(_releaseData.CachedPrereleasesList);
+                    return Content(this._launcherReleaseData.CachedPrereleasesList);
             }
         }
         else
         {
             var allowedFileNames = new[] {
                 "Setup.exe",
-                $"XIVLauncher-{_releaseData.CachedRelease.TagName}-delta.nupkg",
-                $"XIVLauncher-{_releaseData.CachedRelease.TagName}-full.nupkg",
-                $"XIVLauncher-{_releaseData.CachedPrerelease.TagName}-delta.nupkg",
-                $"XIVLauncher-{_releaseData.CachedPrerelease.TagName}-full.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.CachedRelease.TagName}-delta.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.CachedRelease.TagName}-full.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.CachedPrerelease.TagName}-delta.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.CachedPrerelease.TagName}-full.nupkg",
                 "CHANGELOG.txt",
             };
 
@@ -91,15 +91,15 @@ public class GitHubProxyController: ControllerBase
             {
                 case "Release":
                 {
-                    var url = ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedRelease, file);
-                    var cachedFile = await _cache.CacheFile(file,  _releaseData.CachedRelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
+                    var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.CachedRelease, file);
+                    var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.CachedRelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
                     return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
                 }
 
                 case "Prerelease":
                 {
-                    var url = ReleaseDataService.GetDownloadUrlForRelease(_releaseData.CachedPrerelease, file);
-                    var cachedFile = await _cache.CacheFile(file,  _releaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
+                    var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.CachedPrerelease, file);
+                    var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
                     return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
                 }
             }
@@ -115,7 +115,7 @@ public class GitHubProxyController: ControllerBase
         if (key != _configuration["CacheClearKey"])
             return BadRequest();
 
-        await _releaseData.ClearCache();
+        await this._launcherReleaseData.ClearCache();
 
         return Ok();
     }
@@ -127,8 +127,8 @@ public class GitHubProxyController: ControllerBase
         {
             TotalDownloads = await _redis.GetCount(RedisKeyStarts),
             UniqueInstalls = await _redis.GetCount(RedisKeyUniqueInstalls),
-            ReleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedRelease, _releaseData.ReleaseChangelog),
-            PrereleaseVersion = ProxyMeta.VersionMeta.From(_releaseData.CachedPrerelease, _releaseData.PrereleaseChangelog),
+            ReleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.CachedRelease, this._launcherReleaseData.ReleaseChangelog),
+            PrereleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.CachedPrerelease, this._launcherReleaseData.PrereleaseChangelog),
         };
     }
 

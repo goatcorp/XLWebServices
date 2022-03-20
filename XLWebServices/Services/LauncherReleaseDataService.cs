@@ -6,9 +6,9 @@ using Repository = LibGit2Sharp.Repository;
 
 namespace XLWebServices.Services;
 
-public class ReleaseDataService
+public class LauncherReleaseDataService
 {
-    private readonly ILogger<ReleaseDataService> _logger;
+    private readonly ILogger<LauncherReleaseDataService> _logger;
     private readonly GitHubService _github;
     private readonly IConfiguration _configuration;
     private readonly FileCacheService _cache;
@@ -23,7 +23,7 @@ public class ReleaseDataService
     public string ReleaseChangelog { get; set; }
     public string PrereleaseChangelog { get; set; }
 
-    public ReleaseDataService(ILogger<ReleaseDataService> logger, GitHubService github, IConfiguration configuration, FileCacheService cache, DiscordHookService discord)
+    public LauncherReleaseDataService(ILogger<LauncherReleaseDataService> logger, GitHubService github, IConfiguration configuration, FileCacheService cache, DiscordHookService discord)
     {
         _logger = logger;
         _github = github;

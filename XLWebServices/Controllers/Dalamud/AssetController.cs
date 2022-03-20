@@ -4,7 +4,7 @@ using XLWebServices.Services;
 namespace XLWebServices.Controllers;
 
 [ApiController]
-[Route("Asset/[action]")]
+[Route("Dalamud/Asset/[action]")]
 public class AssetController : ControllerBase
 {
     private readonly AssetCacheService assetCache;
