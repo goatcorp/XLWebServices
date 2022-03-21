@@ -152,6 +152,8 @@ public class DalamudReleaseDataService
 
         public bool RuntimeRequired { get; set; }
 
+        public string SupportedGameVer { get; set; }
+
         public DalamudChangelog? Changelog { get; set; }
 
         public string DownloadUrl { get; set; }
