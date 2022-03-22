@@ -1,14 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
+using Prometheus;
 using XLWebServices.Services;
 
 namespace XLWebServices.Controllers;
 
 [ApiController]
-[Route("Dalamud/Release/")]
+[Route("Dalamud/Release/[action]")]
 public class ReleaseController : ControllerBase
 {
     private readonly DalamudReleaseDataService releaseCache;
     private readonly IConfiguration configuration;
+
+    private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
 
     public ReleaseController(DalamudReleaseDataService releaseCache, IConfiguration configuration)
     {
@@ -16,26 +19,36 @@ public class ReleaseController : ControllerBase
         this.configuration = configuration;
     }
 
-    [HttpGet("VersionInfo/{track?}")]
-    public IActionResult Get(string? track)
+    [HttpGet]
+    public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "")
     {
         if (string.IsNullOrEmpty(track))
             track = "release";
 
+        if (string.IsNullOrEmpty(appId))
+            appId = "goat";
+
+        if (appId != "goat" && appId != "xom")
+            return BadRequest("Invalid appId");
+
         switch (track)
         {
             case "release":
+            {
+                DownloadsOverTime.WithLabels(appId).Inc();
                 return new JsonResult(this.releaseCache.ReleaseVersion);
+            }
 
+            case "staging":
             case "stg":
                 return new JsonResult(this.releaseCache.StagingVersion);
 
             default:
-                return new BadRequestResult();
+                return this.BadRequest("Invalid track");
         }
     }
 
-    [HttpGet("[action]")]
+    [HttpGet]
     public IActionResult Meta()
     {
         return new JsonResult(new Dictionary<string, DalamudReleaseDataService.DalamudVersion>
@@ -45,7 +58,7 @@ public class ReleaseController : ControllerBase
         });
     }
 
-    [HttpGet("[action]")]
+    [HttpGet]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
         if (key != this.configuration["CacheClearKey"])
