@@ -38,9 +38,12 @@ public class AssetCacheService
 
         foreach (var asset in assetsInfo.Assets)
         {
-            var file = await this.cache.CacheFile(asset.FileName, assetsInfo.Version.ToString(), asset.Url,
-                FileCacheService.CachedFile.FileCategory.Asset);
-            asset.Url = $"{this.config["HostedUrl"]}/File/Get/{file.Id}";
+            if (asset.Url.Contains("github"))
+            {
+                var file = await this.cache.CacheFile(asset.FileName, assetsInfo.Version.ToString(), asset.Url,
+                    FileCacheService.CachedFile.FileCategory.Asset);
+                asset.Url = $"{this.config["HostedUrl"]}/File/Get/{file.Id}";
+            }
         }
 
         if (this.AssetVersion.HasValue)

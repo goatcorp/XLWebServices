@@ -8,18 +8,23 @@ public class FileCacheService
     private readonly ConcurrentDictionary<string, CachedFile> cached = new();
     private readonly ConcurrentDictionary<string, CachedFile> cachedById = new();
     private readonly HttpClient client;
+    private readonly DirectoryInfo cacheDirectory;
 
-    public long CacheSize => this.cached.Sum(x => x.Value.Data.Length);
+    public long CacheSize => this.cached.Sum(x => x.Value.Length);
 
     public Dictionary<CachedFile.FileCategory, int> CountPerCategory => this.cached.GroupBy(x => x.Value.Category).ToDictionary(x => x.Key, x => x.Count());
 
-    public FileCacheService()
+    public FileCacheService(IConfiguration configuration)
     {
         this.client = new HttpClient();
         this.client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
         {
             NoCache = true,
         };
+
+        this.cacheDirectory = new DirectoryInfo(configuration.GetValue<string>("FileCacheDirectory"));
+        if (!this.cacheDirectory.Exists)
+            this.cacheDirectory.Create();
     }
 
     public async Task<CachedFile> CacheFile(string fileName, string cacheKey, string url, CachedFile.FileCategory category)
@@ -66,22 +71,33 @@ public class FileCacheService
         response.EnsureSuccessStatusCode();
         var content = await response.Content.ReadAsByteArrayAsync();
 
+        var id = Hash.GetStringSha256Hash(key);
+
+        var cachedPath = new FileInfo(Path.Combine(this.cacheDirectory.FullName, id));
+        if (!cachedPath.Exists)
+        {
+            await File.WriteAllBytesAsync(cachedPath.FullName, content);
+        }
+
         var fileName = response.Content.Headers.ContentDisposition?.FileName;
         fileName ??= url.Split('/').Last();
 
-        return new CachedFile(key, cacheKey, content, response.Content.Headers.ContentType?.MediaType, fileName, category);
+        return new CachedFile(id, cacheKey, cachedPath, content.Length, response.Content.Headers.ContentType?.MediaType, fileName, category);
     }
 
     public struct CachedFile
     {
-        public CachedFile(string fullKey, string cacheKey, byte[] data, string? contentType, string originalName, FileCategory category)
+        private readonly WeakReference<byte[]> data = new(null);
+
+        public CachedFile(string id, string cacheKey, FileInfo cachedFile, long length, string? contentType, string originalName, FileCategory category)
         {
             this.CacheKey = cacheKey;
-            this.Data = data;
+            this.CachedFileInfo = cachedFile;
             this.ContentType = contentType;
             this.OriginalName = originalName;
-            this.Id = Hash.GetStringSha256Hash(fullKey);
+            this.Id = id;
             this.Category = category;
+            this.Length = length;
         }
 
         public string CacheKey { get; set; }
@@ -90,11 +106,13 @@ public class FileCacheService
 
         public string? ContentType { get; set; }
 
-        public byte[] Data { get; set; }
+        public FileInfo CachedFileInfo { get; set; }
 
         public string Id { get; set; }
 
         public FileCategory Category { get; set; }
+
+        public long Length { get; private set; }
 
         public enum FileCategory
         {
@@ -102,6 +120,18 @@ public class FileCacheService
             Plugin,
             Asset,
             Dalamud,
+        }
+
+        public byte[] GetData()
+        {
+            if (this.data.TryGetTarget(out var cachedData))
+            {
+                return cachedData;
+            }
+
+            var readData = File.ReadAllBytes(CachedFileInfo.FullName);
+            this.data.SetTarget(readData);
+            return readData;
         }
     }
 }
