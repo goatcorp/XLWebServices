@@ -49,7 +49,7 @@ public class PluginController : ControllerBase
         var cachedFile = await this._cache.CacheFile(internalName, $"{version}-{folder}",
             string.Format(githubPath, branch, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
-        return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
+        return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
     }
 
     [HttpGet]

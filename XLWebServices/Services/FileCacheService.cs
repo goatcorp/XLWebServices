@@ -6,6 +6,7 @@ namespace XLWebServices.Services;
 public class FileCacheService
 {
     private readonly ConcurrentDictionary<string, CachedFile> cached = new();
+    private readonly ConcurrentDictionary<string, CachedFile> cachedById = new();
     private readonly HttpClient client;
 
     public long CacheSize => this.cached.Sum(x => x.Value.Data.Length);
@@ -30,14 +31,18 @@ public class FileCacheService
             return cached;
         }
 
-        var file = await GetFile(url, cacheKey, category);
+        var file = await GetFile(key, url, cacheKey, category);
         this.cached.TryAdd(key, file);
+        this.cachedById.TryAdd(file.Id, file);
         return file;
     }
 
-    public CachedFile? GetCachedFile(Guid id)
+    public CachedFile? GetCachedFile(string id)
     {
-        return this.cached.Values.FirstOrDefault(x => x.FileId == id);
+        if (this.cachedById.TryGetValue(id, out var cachedFile))
+            return cachedFile;
+
+        return null;
     }
 
     public void ClearCategory(CachedFile.FileCategory category, string? cacheKey = null)
@@ -48,13 +53,14 @@ public class FileCacheService
             filesToRemove = filesToRemove.Where(x => x.Value.CacheKey.Equals(cacheKey, StringComparison.OrdinalIgnoreCase));
         }
 
-        foreach (var file in filesToRemove.Select(x => x.Key))
+        foreach (var file in filesToRemove)
         {
-            this.cached.Remove(file, out _);
+            this.cached.Remove(file.Key, out _);
+            this.cachedById.Remove(file.Value.Id, out _);
         }
     }
 
-    private async Task<CachedFile> GetFile(string url, string cacheKey, CachedFile.FileCategory category)
+    private async Task<CachedFile> GetFile(string key, string url, string cacheKey, CachedFile.FileCategory category)
     {
         var response = await this.client.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -63,18 +69,18 @@ public class FileCacheService
         var fileName = response.Content.Headers.ContentDisposition?.FileName;
         fileName ??= url.Split('/').Last();
 
-        return new CachedFile(cacheKey, content, response.Content.Headers.ContentType?.MediaType, fileName, category);
+        return new CachedFile(key, cacheKey, content, response.Content.Headers.ContentType?.MediaType, fileName, category);
     }
 
     public struct CachedFile
     {
-        public CachedFile(string cacheKey, byte[] data, string? contentType, string originalName, FileCategory category)
+        public CachedFile(string fullKey, string cacheKey, byte[] data, string? contentType, string originalName, FileCategory category)
         {
             this.CacheKey = cacheKey;
             this.Data = data;
             this.ContentType = contentType;
             this.OriginalName = originalName;
-            this.FileId = Guid.NewGuid();
+            this.Id = Hash.GetStringSha256Hash(fullKey);
             this.Category = category;
         }
 
@@ -86,7 +92,7 @@ public class FileCacheService
 
         public byte[] Data { get; set; }
 
-        public Guid FileId { get; set; }
+        public string Id { get; set; }
 
         public FileCategory Category { get; set; }
 

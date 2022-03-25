@@ -62,13 +62,13 @@ public class DalamudReleaseDataService
 
         var releaseCache = await this.cache.CacheFile("latest.zip", ReleaseVersion.AssemblyVersion, releaseZip,
             FileCacheService.CachedFile.FileCategory.Dalamud);
-        ReleaseVersion.DownloadUrl = $"{this.config["HostedUrl"]}/File/Get/{releaseCache.FileId}";
+        ReleaseVersion.DownloadUrl = $"{this.config["HostedUrl"]}/File/Get/{releaseCache.Id}";
         ReleaseVersion.Track = "release";
         ReleaseVersion.Changelog = DalamudChangelogs.FirstOrDefault(x => x.Version == ReleaseVersion.AssemblyVersion);
 
         var stgCache = await this.cache.CacheFile("staging.zip", StagingVersion.AssemblyVersion, stgZip,
             FileCacheService.CachedFile.FileCategory.Dalamud);
-        StagingVersion.DownloadUrl = $"{this.config["HostedUrl"]}/File/Get/{stgCache.FileId}";
+        StagingVersion.DownloadUrl = $"{this.config["HostedUrl"]}/File/Get/{stgCache.Id}";
         StagingVersion.Track = "staging";
 
         await this.discord.SendSuccess($"Release: {ReleaseVersion.AssemblyVersion}({ReleaseVersion?.Changelog?.Changes.Count} Changes)\nStaging: {StagingVersion.AssemblyVersion}", "Dalamud releases updated!");

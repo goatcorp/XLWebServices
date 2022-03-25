@@ -16,7 +16,7 @@ public class FileController : ControllerBase
 
     [HttpGet("{id}")]
     [ResponseCache(Duration = 2592000)]
-    public IActionResult Get(Guid id)
+    public IActionResult Get(string id)
     {
          var file = _cache.GetCachedFile(id);
 

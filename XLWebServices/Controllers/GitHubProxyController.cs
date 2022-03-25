@@ -93,14 +93,14 @@ public class GitHubProxyController: ControllerBase
                 {
                     var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.CachedRelease, file);
                     var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.CachedRelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
-                    return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
+                    return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
                 }
 
                 case "Prerelease":
                 {
                     var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.CachedPrerelease, file);
                     var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
-                    return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.FileId}");
+                    return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
                 }
             }
         }
