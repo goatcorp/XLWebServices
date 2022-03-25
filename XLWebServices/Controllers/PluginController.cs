@@ -65,9 +65,17 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult PluginMaster()
+    public IActionResult PluginMaster([FromQuery] bool proxy = true)
     {
-        return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
+        if (proxy)
+        {
+            return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+            }), "application/json");
+        }
+
+        return Content(JsonSerializer.Serialize(this._pluginData.PluginMasterNoProxy, new JsonSerializerOptions
         {
             WriteIndented = true,
         }), "application/json");

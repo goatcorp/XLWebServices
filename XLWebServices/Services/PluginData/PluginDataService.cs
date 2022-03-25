@@ -15,6 +15,8 @@ public class PluginDataService
     private readonly HttpClient _client;
 
     public IReadOnlyList<PluginManifest>? PluginMaster { get; private set; }
+    public IReadOnlyList<PluginManifest>? PluginMasterNoProxy { get; private set; }
+
     public DateTime LastUpdate { get; private set; }
 
     public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, RedisService redis, DiscordHookService discord)
@@ -52,6 +54,7 @@ public class PluginDataService
                 await _github.Client.Repository.Content.GetAllContents(repoOwner, repoName, "testing/");
 
             var pluginMaster = new List<PluginManifest>();
+            var noProxyPluginMaster = new List<PluginManifest>();
 
             foreach (var repositoryContent in pluginsDir)
             {
@@ -83,11 +86,17 @@ public class PluginDataService
 
                 manifest.DownloadCount = await _redis.GetCount(manifest.InternalName);
 
+                var noProxyManifest = new PluginManifest(manifest);
+
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel);
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel);
-                manifest.DownloadLinkUpdate = string.Format(updateTemplate, manifest.InternalName, "plugins", apiLevel);
+                manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
+
+                noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
+                noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
 
                 pluginMaster.Add(manifest);
+                noProxyPluginMaster.Add(noProxyManifest);
             }
 
             foreach (var repositoryContent in testingDir)
@@ -108,14 +117,21 @@ public class PluginDataService
 
                 manifest.DownloadCount = await _redis.GetCount(manifest.InternalName);
 
+                var noProxyManifest = new PluginManifest(manifest);
+
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel);
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, manifest.InternalName, "plugins", apiLevel);
 
+                noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
+                noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
+
                 pluginMaster.Add(manifest);
+                noProxyPluginMaster.Add(noProxyManifest);
             }
 
             PluginMaster = pluginMaster;
+            PluginMasterNoProxy = noProxyPluginMaster;
             LastUpdate = DateTime.Now;
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);

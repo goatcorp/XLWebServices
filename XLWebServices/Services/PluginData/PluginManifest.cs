@@ -5,6 +5,37 @@ namespace XLWebServices.Services.PluginData;
 [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
 public class PluginManifest
 {
+    public PluginManifest(){}
+
+    public PluginManifest(PluginManifest toCopy)
+    {
+        this.Author = toCopy.Author;
+        this.Name = toCopy.Name;
+        this.Punchline = toCopy.Punchline;
+        this.Description = toCopy.Description;
+        this.Tags = toCopy.Tags;
+        this.CategoryTags = toCopy.CategoryTags;
+        this.IsHide = toCopy.IsHide;
+        this.InternalName = toCopy.InternalName;
+        this.AssemblyVersion = toCopy.AssemblyVersion;
+        this.TestingAssemblyVersion = toCopy.TestingAssemblyVersion;
+        this.IsTestingExclusive = toCopy.IsTestingExclusive;
+        this.RepoUrl = toCopy.RepoUrl;
+        this.ApplicableVersion = toCopy.ApplicableVersion;
+        this.DalamudApiLevel = toCopy.DalamudApiLevel;
+        this.DownloadCount = toCopy.DownloadCount;
+        this.LastUpdate = toCopy.LastUpdate;
+        this.DownloadLinkInstall = toCopy.DownloadLinkInstall;
+        this.DownloadLinkUpdate = toCopy.DownloadLinkUpdate;
+        this.DownloadLinkTesting = toCopy.DownloadLinkTesting;
+        this.LoadPriority = toCopy.LoadPriority;
+        this.ImageUrls = toCopy.ImageUrls;
+        this.IconUrl = toCopy.IconUrl;
+        this.AcceptsFeedback = toCopy.AcceptsFeedback;
+        this.FeedbackMessage = toCopy.FeedbackMessage;
+        this.FeedbackWebhook = toCopy.FeedbackWebhook;
+    }
+
     /// <summary>
     ///     Gets the author/s of the plugin.
     /// </summary>
