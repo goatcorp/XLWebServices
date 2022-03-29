@@ -34,6 +34,7 @@ public class PluginManifest
         this.AcceptsFeedback = toCopy.AcceptsFeedback;
         this.FeedbackMessage = toCopy.FeedbackMessage;
         this.FeedbackWebhook = toCopy.FeedbackWebhook;
+        this.Changelog = toCopy.Changelog;
     }
 
     /// <summary>

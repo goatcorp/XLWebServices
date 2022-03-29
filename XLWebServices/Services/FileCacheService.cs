@@ -36,7 +36,7 @@ public class FileCacheService
             return cached;
         }
 
-        var file = await GetFile(key, url, cacheKey, category);
+        var file = await GetFile(url, cacheKey, category);
         this.cached.TryAdd(key, file);
         this.cachedById.TryAdd(file.Id, file);
         return file;
@@ -65,13 +65,13 @@ public class FileCacheService
         }
     }
 
-    private async Task<CachedFile> GetFile(string key, string url, string cacheKey, CachedFile.FileCategory category)
+    private async Task<CachedFile> GetFile(string url, string cacheKey, CachedFile.FileCategory category)
     {
         var response = await this.client.GetAsync(url);
         response.EnsureSuccessStatusCode();
         var content = await response.Content.ReadAsByteArrayAsync();
 
-        var id = Hash.GetStringSha256Hash(key);
+        var id = Hash.GetSha256Hash(content);
 
         var cachedPath = new FileInfo(Path.Combine(this.cacheDirectory.FullName, id));
         if (!cachedPath.Exists)
