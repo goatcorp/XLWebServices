@@ -5,6 +5,7 @@ namespace XLWebServices.Services;
 
 public class FileCacheService
 {
+    private readonly ILogger<FileCacheService> _logger;
     private readonly ConcurrentDictionary<string, CachedFile> cached = new();
     private readonly ConcurrentDictionary<string, CachedFile> cachedById = new();
     private readonly HttpClient client;
@@ -14,8 +15,9 @@ public class FileCacheService
 
     public Dictionary<CachedFile.FileCategory, int> CountPerCategory => this.cached.GroupBy(x => x.Value.Category).ToDictionary(x => x.Key, x => x.Count());
 
-    public FileCacheService(IConfiguration configuration)
+    public FileCacheService(IConfiguration configuration, ILogger<FileCacheService> logger)
     {
+        this._logger = logger;
         this.client = new HttpClient();
         this.client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
         {
@@ -39,6 +41,9 @@ public class FileCacheService
         var file = await GetFile(url, cacheKey, category);
         this.cached.TryAdd(key, file);
         this.cachedById.TryAdd(file.Id, file);
+
+        this._logger.LogInformation($"Now cached: {this.cached.Count}, {this.cachedById.Count}, {url}, {cacheKey}, {file.Id}");
+
         return file;
     }
 
