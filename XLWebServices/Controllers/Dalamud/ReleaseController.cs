@@ -36,26 +36,26 @@ public class ReleaseController : ControllerBase
             case "release":
             {
                 DownloadsOverTime.WithLabels(appId).Inc();
-                return new JsonResult(this.releaseCache.ReleaseVersion);
+                return new JsonResult(this.releaseCache.DalamudVersions["release"]);
             }
 
             case "staging":
-            case "stg":
-                return new JsonResult(this.releaseCache.StagingVersion);
+                return new JsonResult(this.releaseCache.DalamudVersions["stg"]);
 
             default:
-                return this.BadRequest("Invalid track");
+            {
+                if (!this.releaseCache.DalamudVersions.TryGetValue(track, out var release))
+                    return this.BadRequest("Invalid track");
+
+                return new JsonResult(release);
+            }
         }
     }
 
     [HttpGet]
     public IActionResult Meta()
     {
-        return new JsonResult(new Dictionary<string, DalamudReleaseDataService.DalamudVersion>
-        {
-            { "release", this.releaseCache.ReleaseVersion },
-            { "stg", this.releaseCache.StagingVersion }
-        });
+        return new JsonResult(this.releaseCache.DalamudVersions);
     }
 
     [HttpGet]
