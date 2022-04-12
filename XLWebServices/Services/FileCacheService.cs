@@ -47,7 +47,7 @@ public class FileCacheService
 
         if (!this.cachedById.TryAdd(file.Id, file))
         {
-            throw new Exception($"Failed to add file to cachedById!!!! {fileName} {file.Id} {cacheKey} {url} {category}");
+            this.logger.LogWarning($"Failed to add file to cachedById!!!! Duplicate?\n\t{fileName}\n\t{file.Id}\n\t{cacheKey}\n\t{url}\n\t{category}");
         }
 
         this.logger.LogInformation($"Now cached: {this.cached.Count}, {this.cachedById.Count}, {url}, {cacheKey}, {file.Id}");
