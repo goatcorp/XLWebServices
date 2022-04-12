@@ -5,7 +5,7 @@ namespace XLWebServices.Services;
 
 public class FileCacheService
 {
-    private readonly ILogger<FileCacheService> _logger;
+    private readonly ILogger<FileCacheService> logger;
     private readonly ConcurrentDictionary<string, CachedFile> cached = new();
     private readonly ConcurrentDictionary<string, CachedFile> cachedById = new();
     private readonly HttpClient client;
@@ -17,7 +17,7 @@ public class FileCacheService
 
     public FileCacheService(IConfiguration configuration, ILogger<FileCacheService> logger)
     {
-        this._logger = logger;
+        this.logger = logger;
         this.client = new HttpClient();
         this.client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
         {
@@ -39,10 +39,18 @@ public class FileCacheService
         }
 
         var file = await GetFile(url, cacheKey, category);
-        this.cached.TryAdd(key, file);
-        this.cachedById.TryAdd(file.Id, file);
 
-        this._logger.LogInformation($"Now cached: {this.cached.Count}, {this.cachedById.Count}, {url}, {cacheKey}, {file.Id}");
+        if (!this.cached.TryAdd(key, file))
+        {
+            throw new Exception($"Failed to add file to cache!!!! {fileName} {file.Id} {cacheKey} {url} {category}");
+        }
+
+        if (!this.cachedById.TryAdd(file.Id, file))
+        {
+            throw new Exception($"Failed to add file to cachedById!!!! {fileName} {file.Id} {cacheKey} {url} {category}");
+        }
+
+        this.logger.LogInformation($"Now cached: {this.cached.Count}, {this.cachedById.Count}, {url}, {cacheKey}, {file.Id}");
 
         return file;
     }
