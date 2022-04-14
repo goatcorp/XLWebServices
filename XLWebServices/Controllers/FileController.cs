@@ -20,15 +20,15 @@ public class FileController : ControllerBase
     {
          var file = _cache.GetCachedFile(id);
 
-        if (!file.HasValue)
+        if (file == null)
         {
             return NotFound();
         }
 
-        var contentType = file.Value.ContentType;
+        var contentType = file.ContentType;
         contentType ??= "application/octet-stream";
 
-        return File(file.Value.GetData(), contentType, file.Value.OriginalName);
+        return File(file.GetData(), contentType, file.OriginalName);
     }
 
     [HttpGet]

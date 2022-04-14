@@ -17,6 +17,8 @@ public class PluginDataService
     public IReadOnlyList<PluginManifest>? PluginMaster { get; private set; }
     public IReadOnlyList<PluginManifest>? PluginMasterNoProxy { get; private set; }
 
+    public string RepoSha { get; private set; }
+
     public DateTime LastUpdate { get; private set; }
 
     public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, RedisService redis, DiscordHookService discord)
@@ -40,6 +42,9 @@ public class PluginDataService
             var repoName = _configuration["GitHub:PluginRepository:Name"];
             var apiLevel = _configuration["ApiLevel"];
 
+            var commit = await _github.Client.Repository.Commit.Get(repoOwner, repoName, _configuration["PluginRepoBranch"]);
+            var sha = commit.Sha;
+
             var downloadTemplate = _configuration["TemplateDownload"];
             var updateTemplate = _configuration["TemplateUpdate"];
 
@@ -49,16 +54,16 @@ public class PluginDataService
                 throw new Exception("Failed to load banned plugins");
 
             var pluginsDir =
-                await _github.Client.Repository.Content.GetAllContents(repoOwner, repoName, "plugins/");
+                await _github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, "plugins/", sha);
             var testingDir =
-                await _github.Client.Repository.Content.GetAllContents(repoOwner, repoName, "testing/");
+                await _github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, "testing/", sha);
 
             var pluginMaster = new List<PluginManifest>();
             var noProxyPluginMaster = new List<PluginManifest>();
 
             foreach (var repositoryContent in pluginsDir)
             {
-                var manifest = await this.GetManifest(repositoryContent);
+                var manifest = await this.GetManifest(repoOwner, repoName, false, repositoryContent.Name, sha);
                 if (manifest == null)
                     throw new Exception($"Could not fetch manifest for release plugin: {repositoryContent.Name}");
 
@@ -70,7 +75,7 @@ public class PluginDataService
                 var testingVersion = testingDir.FirstOrDefault(x => x.Name == repositoryContent.Name);
                 if (testingVersion != null)
                 {
-                    var testingManifest = await this.GetManifest(testingVersion);
+                    var testingManifest = await this.GetManifest(repoOwner, repoName, true, repositoryContent.Name, sha);
                     if (testingManifest == null)
                         throw new Exception(
                             $"Plugin had testing version, but could not fetch manifest: {repositoryContent.Name}");
@@ -104,7 +109,7 @@ public class PluginDataService
                 if (pluginMaster.Any(x => x.InternalName == repositoryContent.Name))
                     continue;
 
-                var manifest = await this.GetManifest(repositoryContent);
+                var manifest = await this.GetManifest(repoOwner, repoName, true, repositoryContent.Name, sha);
                 if (manifest == null)
                     throw new Exception($"Could not fetch manifest for testing plugin: {repositoryContent.Name}");
 
@@ -132,6 +137,7 @@ public class PluginDataService
 
             PluginMaster = pluginMaster;
             PluginMasterNoProxy = noProxyPluginMaster;
+            RepoSha = sha;
             LastUpdate = DateTime.Now;
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
@@ -199,10 +205,10 @@ public class PluginDataService
         return commits[0];
     }
 
-    private async Task<PluginManifest?> GetManifest(RepositoryContent pluginFolder)
+    private async Task<PluginManifest?> GetManifest(string repoOwner, string repoName, bool isTesting, string pluginName, string sha)
     {
-        var folderUrl = pluginFolder.HtmlUrl.Replace("https://github.com/", "https://raw.githubusercontent.com/").Replace("/tree/", "/");
-        var manifestUrl = $"{folderUrl}/{pluginFolder.Name}.json";
+        var folder = isTesting ? "testing" : "plugins";
+        var manifestUrl = $"https://raw.githubusercontent.com/{repoOwner}/{repoName}/{sha}/{folder}/{pluginName}/{pluginName}.json";
         return await _client.GetFromJsonAsync<PluginManifest>(manifestUrl, new JsonSerializerOptions
         {
             AllowTrailingCommas = true, // Haplo's manifest has trailing commas

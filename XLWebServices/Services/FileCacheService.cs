@@ -40,6 +40,20 @@ public class FileCacheService
 
         var file = await GetFile(url, cacheKey, category);
 
+        var preCached = this.cached.FirstOrDefault(x => x.Value.Id == file.Id);
+
+        if (preCached.Key != null)
+        {
+            this.logger.LogInformation("Already found file with id {Id}", file.Id);
+
+            if (!this.cached.TryAdd(key, preCached.Value))
+            {
+                throw new Exception($"Failed to assign duplicate to cache!!!! {fileName} {file.Id} {cacheKey} {url} {category}");
+            }
+
+            return file;
+        }
+
         if (!this.cached.TryAdd(key, file))
         {
             throw new Exception($"Failed to add file to cache!!!! {fileName} {file.Id} {cacheKey} {url} {category}");
@@ -98,7 +112,7 @@ public class FileCacheService
         return new CachedFile(id, cacheKey, cachedPath, content.Length, response.Content.Headers.ContentType?.MediaType, fileName, category);
     }
 
-    public struct CachedFile
+    public class CachedFile
     {
         private readonly WeakReference<byte[]> data = new(null);
 

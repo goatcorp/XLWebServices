@@ -32,7 +32,7 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet("{internalName}")]
-    public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "branch")] string branch = "master", [FromQuery(Name = "isTesting")] bool isTesting = false)
+    public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false)
     {
         var manifest = this._pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
         if (manifest == null)
@@ -46,8 +46,8 @@ public class PluginController : ControllerBase
         const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
         var folder = isTesting ? "testing" : "plugins";
         var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-        var cachedFile = await this._cache.CacheFile(internalName, $"{version}-{folder}",
-            string.Format(githubPath, branch, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+        var cachedFile = await _cache.CacheFile(internalName, $"{version}-{folder}-{_pluginData.RepoSha}",
+            string.Format(githubPath, _pluginData.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
         return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
     }

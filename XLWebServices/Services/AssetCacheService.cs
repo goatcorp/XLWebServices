@@ -36,6 +36,8 @@ public class AssetCacheService
         if (assetsInfo == null)
             throw new Exception("Couldn't fetch assets.");
 
+        this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Asset);
+
         foreach (var asset in assetsInfo.Assets)
         {
             if (asset.Url.Contains("github"))
@@ -45,9 +47,6 @@ public class AssetCacheService
                 asset.Url = $"{this.config["HostedUrl"]}/File/Get/{file.Id}";
             }
         }
-
-        if (this.AssetVersion.HasValue)
-            this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Asset, this.AssetVersion.Value.ToString());
 
         this.AssetVersion = assetsInfo.Version;
         this.Assets = assetsInfo.Assets;
