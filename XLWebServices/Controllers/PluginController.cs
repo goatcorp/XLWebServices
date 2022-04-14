@@ -94,7 +94,7 @@ public class PluginController : ControllerBase
         }), "application/json");
     }
 
-    [HttpGet]
+    [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
         if (key != _configuration["CacheClearKey"])

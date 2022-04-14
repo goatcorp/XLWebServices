@@ -58,7 +58,7 @@ public class ReleaseController : ControllerBase
         return new JsonResult(this.releaseCache.DalamudVersions);
     }
 
-    [HttpGet]
+    [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
         if (key != this.configuration["CacheClearKey"])

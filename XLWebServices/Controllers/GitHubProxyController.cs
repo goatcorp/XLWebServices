@@ -109,7 +109,7 @@ public class GitHubProxyController: ControllerBase
         return BadRequest("Invalid track");
     }
 
-    [HttpGet]
+    [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
         if (key != _configuration["CacheClearKey"])

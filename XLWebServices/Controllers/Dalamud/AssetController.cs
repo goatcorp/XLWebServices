@@ -25,7 +25,7 @@ public class AssetController : ControllerBase
         return new JsonResult(this.assetCache.Response);
     }
 
-    [HttpGet]
+    [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
         if (key != this.configuration["CacheClearKey"])
