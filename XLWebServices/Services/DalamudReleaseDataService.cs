@@ -45,8 +45,11 @@ public class DalamudReleaseDataService
         var repoOwner = this.config["GitHub:DistribRepository:Owner"];
         var repoName = this.config["GitHub:DistribRepository:Name"];
 
+        var commit = await this.github.Client.Repository.Commit.Get(repoOwner, repoName, "master");
+        var sha = commit.Sha;
+
         // Get tree
-        var tree = await this.github.Client.Repository.Content.GetAllContents(repoOwner, repoName);
+        var tree = await this.github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, sha);
 
         if (tree == null)
             throw new Exception($"Repo {repoName} not found");
@@ -58,10 +61,10 @@ public class DalamudReleaseDataService
             if (content.Type != ContentType.Dir || content.Name == ".github")
                 continue;
 
-            releasesDict.Add(content.Name, await GetDalamudRelease(content.Name, repoOwner, repoName));
+            releasesDict.Add(content.Name, await GetDalamudRelease(content.Name, repoOwner, repoName, sha));
         }
 
-        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName);
+        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, sha);
         release.Changelog = DalamudChangelogs.FirstOrDefault(x => x.Version == release.AssemblyVersion);
 
         releasesDict.Add("release", release);
@@ -85,7 +88,7 @@ public class DalamudReleaseDataService
         this.logger.LogInformation($"Correctly refreshed Dalamud releases");
     }
 
-    private async Task<DalamudVersion> GetDalamudRelease(string trackName, string repoOwner, string repoName)
+    private async Task<DalamudVersion> GetDalamudRelease(string trackName, string repoOwner, string repoName, string sha)
     {
         if (!string.IsNullOrEmpty(trackName))
             trackName = $"{trackName}/";
@@ -94,8 +97,8 @@ public class DalamudReleaseDataService
             $"https://raw.githubusercontent.com/{repoOwner}/{repoName}";
 
         var releaseJson = JsonSerializer.Deserialize<DalamudVersion>(Encoding.UTF8.GetString(
-            await this.github.Client.Repository.Content.GetRawContent(repoOwner, repoName, $"{trackName}version")));
-        var releaseUrl = $"{repoBase}/master/{trackName}latest.zip";
+            await this.github.Client.Repository.Content.GetRawContentByRef(repoOwner, repoName, $"{trackName}version", sha)));
+        var releaseUrl = $"{repoBase}/{sha}/{trackName}latest.zip";
 
         if (releaseJson == null)
             throw new Exception($"Failed to get release data for {trackName}");
