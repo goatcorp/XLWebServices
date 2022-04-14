@@ -40,13 +40,11 @@ public class FileCacheService
 
         var file = await GetFile(url, cacheKey, category);
 
-        var preCached = this.cached.FirstOrDefault(x => x.Value.Id == file.Id);
-
-        if (preCached.Key != null)
+        if (this.cachedById.TryGetValue(file.Id, out var preCached))
         {
             this.logger.LogInformation("Already found file with id {Id}", file.Id);
 
-            if (!this.cached.TryAdd(key, preCached.Value))
+            if (!this.cached.TryAdd(key, preCached))
             {
                 throw new Exception($"Failed to assign duplicate to cache!!!! {fileName} {file.Id} {cacheKey} {url} {category}");
             }
