@@ -45,7 +45,7 @@ public class DalamudReleaseDataService
         var repoOwner = this.config["GitHub:DistribRepository:Owner"];
         var repoName = this.config["GitHub:DistribRepository:Name"];
 
-        var commit = await this.github.Client.Repository.Commit.Get(repoOwner, repoName, "master");
+        var commit = await this.github.Client.Repository.Commit.Get(repoOwner, repoName, "main");
         var sha = commit.Sha;
 
         // Get tree
