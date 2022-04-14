@@ -1,4 +1,7 @@
 using System.Net.Http.Headers;
+using Newtonsoft.Json;
+using Octokit;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace XLWebServices.Services;
 
@@ -6,32 +9,31 @@ public class AssetCacheService
 {
     private readonly IConfiguration config;
     private readonly FileCacheService cache;
+    private readonly GitHubService github;
     private readonly ILogger<AssetCacheService> logger;
 
     private int? AssetVersion { get; set; }
     public IReadOnlyList<Asset>? Assets { get; private set; }
     public AssetResponse? Response { get; private set; }
 
-    public AssetCacheService(IConfiguration config, FileCacheService cache, ILogger<AssetCacheService> logger)
+    public AssetCacheService(IConfiguration config, FileCacheService cache, GitHubService github, ILogger<AssetCacheService> logger)
     {
         this.config = config;
         this.cache = cache;
+        this.github = github;
         this.logger = logger;
     }
 
     public async Task ClearCache()
     {
-        var repo =
-            $"https://raw.githubusercontent.com/{this.config["GitHub:AssetRepository:Owner"]}/{this.config["GitHub:AssetRepository:Name"]}";
+        var repoOwner = this.config["GitHub:AssetRepository:Owner"];
+        var repoName = this.config["GitHub:AssetRepository:Name"];
 
-        var assetsFile = $"{repo}/master/asset.json?={DateTime.UtcNow:yyyyMMddHHmmss}";
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
-        {
-            NoCache = true,
-        };
+        var commit = await this.github.Client.Repository.Commit.Get(repoOwner, repoName, "master");
+        var sha = commit.Sha;
 
-        var assetsInfo = await client.GetFromJsonAsync<AssetResponse>(assetsFile);
+        var assetsInfoText = await this.github.Client.Repository.Content.GetRawContentByRef(repoOwner, repoName, "asset.json", sha);
+        var assetsInfo = JsonSerializer.Deserialize<AssetResponse>(assetsInfoText);
 
         if (assetsInfo == null)
             throw new Exception("Couldn't fetch assets.");
@@ -42,7 +44,9 @@ public class AssetCacheService
         {
             if (asset.Url.Contains("github"))
             {
-                var file = await this.cache.CacheFile(asset.FileName, assetsInfo.Version.ToString(), asset.Url,
+                var fileUrl = asset.Url.Replace("master", sha);
+
+                var file = await this.cache.CacheFile(asset.FileName, assetsInfo.Version.ToString(), fileUrl,
                     FileCacheService.CachedFile.FileCategory.Asset);
                 asset.Url = $"{this.config["HostedUrl"]}/File/Get/{file.Id}";
             }
