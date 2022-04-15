@@ -17,7 +17,7 @@ public class PluginController : ControllerBase
     private readonly DalamudReleaseDataService releaseData;
     private readonly FileCacheService cache;
 
-    private bool useFileProxy = true;
+    private static bool UseFileProxy = true;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_plugindl", "XIVLauncher Plugin Downloads", "Name", "Testing");
 
@@ -37,7 +37,7 @@ public class PluginController : ControllerBase
     public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false)
     {
         var masterList = this.pluginData.PluginMaster;
-        if (!this.useFileProxy)
+        if (!UseFileProxy)
             masterList = this.pluginData.PluginMasterNoProxy;
 
         var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
@@ -73,7 +73,7 @@ public class PluginController : ControllerBase
     [HttpGet]
     public IActionResult PluginMaster([FromQuery] bool proxy = true)
     {
-        if (proxy && this.useFileProxy)
+        if (proxy && UseFileProxy)
         {
             return Content(JsonSerializer.Serialize(this.pluginData.PluginMaster, new JsonSerializerOptions
             {
@@ -112,13 +112,14 @@ public class PluginController : ControllerBase
         return Ok();
     }
 
+    [HttpPost]
     public async Task<IActionResult> SetUseProxy([FromQuery] string key, [FromQuery] bool useProxy)
     {
         if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
-        this.useFileProxy = useProxy;
-        return this.Ok(this.useFileProxy);
+        UseFileProxy = useProxy;
+        return this.Ok(UseFileProxy);
     }
 
     [HttpGet]
