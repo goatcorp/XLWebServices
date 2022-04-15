@@ -10,12 +10,14 @@ namespace XLWebServices.Controllers;
 [Route("[controller]/[action]")]
 public class PluginController : ControllerBase
 {
-    private readonly ILogger<PluginController> _logger;
-    private readonly RedisService _redis;
-    private readonly IConfiguration _configuration;
-    private readonly PluginDataService _pluginData;
-    private readonly DalamudReleaseDataService _releaseData;
-    private readonly FileCacheService _cache;
+    private readonly ILogger<PluginController> logger;
+    private readonly RedisService redis;
+    private readonly IConfiguration configuration;
+    private readonly PluginDataService pluginData;
+    private readonly DalamudReleaseDataService releaseData;
+    private readonly FileCacheService cache;
+
+    private bool useFileProxy = true;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_plugindl", "XIVLauncher Plugin Downloads", "Name", "Testing");
 
@@ -23,42 +25,46 @@ public class PluginController : ControllerBase
 
     public PluginController(ILogger<PluginController> logger, RedisService redis, IConfiguration configuration, PluginDataService pluginData, DalamudReleaseDataService dalamudReleaseData, FileCacheService cache)
     {
-        _logger = logger;
-        _redis = redis;
-        _configuration = configuration;
-        _pluginData = pluginData;
-        _releaseData = dalamudReleaseData;
-        _cache = cache;
+        this.logger = logger;
+        this.redis = redis;
+        this.configuration = configuration;
+        this.pluginData = pluginData;
+        this.releaseData = dalamudReleaseData;
+        this.cache = cache;
     }
 
     [HttpGet("{internalName}")]
     public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false)
     {
-        var manifest = this._pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
+        var masterList = this.pluginData.PluginMaster;
+        if (!this.useFileProxy)
+            masterList = this.pluginData.PluginMasterNoProxy;
+
+        var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
         if (manifest == null)
             return BadRequest("Invalid plugin");
 
         DownloadsOverTime.WithLabels(internalName.ToLower(), isTesting.ToString()).Inc();
 
-        await _redis.IncrementCount(internalName);
-        await _redis.IncrementCount(RedisCumulativeKey);
+        await this.redis.IncrementCount(internalName);
+        await this.redis.IncrementCount(RedisCumulativeKey);
 
         const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
         var folder = isTesting ? "testing" : "plugins";
         var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-        var cachedFile = await _cache.CacheFile(internalName, $"{version}-{folder}-{_pluginData.RepoSha}",
-            string.Format(githubPath, _pluginData.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+        var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.RepoSha}",
+            string.Format(githubPath, this.pluginData.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
-        return new RedirectResult($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+        return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
     }
 
     [HttpGet]
     public async Task<Dictionary<string, long>> DownloadCounts()
     {
         var counts = new Dictionary<string, long>();
-        foreach (var plugin in _pluginData.PluginMaster!)
+        foreach (var plugin in this.pluginData.PluginMaster!)
         {
-            counts.Add(plugin.InternalName, await _redis.GetCount(plugin.InternalName));
+            counts.Add(plugin.InternalName, await this.redis.GetCount(plugin.InternalName));
         }
 
         return counts;
@@ -67,15 +73,15 @@ public class PluginController : ControllerBase
     [HttpGet]
     public IActionResult PluginMaster([FromQuery] bool proxy = true)
     {
-        if (proxy)
+        if (proxy && this.useFileProxy)
         {
-            return Content(JsonSerializer.Serialize(this._pluginData.PluginMaster, new JsonSerializerOptions
+            return Content(JsonSerializer.Serialize(this.pluginData.PluginMaster, new JsonSerializerOptions
             {
                 WriteIndented = true,
             }), "application/json");
         }
 
-        return Content(JsonSerializer.Serialize(this._pluginData.PluginMasterNoProxy, new JsonSerializerOptions
+        return Content(JsonSerializer.Serialize(this.pluginData.PluginMasterNoProxy, new JsonSerializerOptions
         {
             WriteIndented = true,
         }), "application/json");
@@ -84,7 +90,7 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public IActionResult Plugin(string internalName)
     {
-        var plugin = _pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
+        var plugin = this.pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
         if (plugin == null)
             return BadRequest("Invalid plugin");
 
@@ -97,13 +103,22 @@ public class PluginController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
-        if (key != _configuration["CacheClearKey"])
+        if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
-        await _pluginData.ClearCache();
-        _cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
+        await this.pluginData.ClearCache();
+        this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
 
         return Ok();
+    }
+
+    public async Task<IActionResult> SetUseProxy([FromQuery] string key, [FromQuery] bool useProxy)
+    {
+        if (key != this.configuration["CacheClearKey"])
+            return BadRequest();
+
+        this.useFileProxy = useProxy;
+        return this.Ok(this.useFileProxy);
     }
 
     [HttpGet]
@@ -111,16 +126,17 @@ public class PluginController : ControllerBase
     {
         return new PluginMeta
         {
-            NumPlugins = _pluginData.PluginMaster!.Count,
-            LastUpdate = _pluginData.LastUpdate,
-            CumulativeDownloads = await _redis.GetCount(RedisCumulativeKey),
+            NumPlugins = this.pluginData.PluginMaster!.Count,
+            LastUpdate = this.pluginData.LastUpdate,
+            CumulativeDownloads = await this.redis.GetCount(RedisCumulativeKey),
+            Sha = this.pluginData.RepoSha,
         };
     }
 
     [HttpGet]
     public IReadOnlyList<DalamudReleaseDataService.DalamudChangelog> CoreChangelog()
     {
-        return this._releaseData.DalamudChangelogs;
+        return this.releaseData.DalamudChangelogs;
     }
 
     public class PluginMeta
@@ -128,5 +144,6 @@ public class PluginController : ControllerBase
         public int NumPlugins { get; init; }
         public long CumulativeDownloads { get; init; }
         public DateTime LastUpdate { get; init; }
+        public string Sha { get; init; }
     }
 }

@@ -141,7 +141,7 @@ public class PluginDataService
             LastUpdate = DateTime.Now;
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
-            await this._discord.SendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded",
+            await this._discord.SendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}",
                 "PluginMaster updated");
         }
         catch (Exception e)
