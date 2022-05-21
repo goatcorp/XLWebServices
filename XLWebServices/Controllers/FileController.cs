@@ -7,23 +7,30 @@ namespace XLWebServices.Controllers;
 [Route("[controller]/[action]")]
 public class FileController : ControllerBase
 {
-    private readonly FileCacheService _cache;
+    private readonly FileCacheService cache;
+    private readonly IConfiguration config;
+    
+    private static bool useFileProxy = true;
 
-    public FileController(FileCacheService cache)
+    public FileController(FileCacheService cache, IConfiguration config)
     {
-        _cache = cache;
+        this.cache = cache;
+        this.config = config;
     }
 
     [HttpGet("{id}")]
     [ResponseCache(Duration = 2592000)]
     public IActionResult Get(string id)
     {
-         var file = _cache.GetCachedFile(id);
+        var file = this.cache.GetCachedFile(id);
 
         if (file == null)
         {
             return NotFound();
         }
+
+        if (!useFileProxy)
+            return Redirect(file.OriginalUrl);
 
         var contentType = file.ContentType;
         contentType ??= "application/octet-stream";
@@ -36,11 +43,21 @@ public class FileController : ControllerBase
     {
         return new FileMeta
         {
-            CacheSize = this._cache.CacheSize,
-            CacheCount = this._cache.CountPerCategory,
+            CacheSize = this.cache.CacheSize,
+            CacheCount = this.cache.CountPerCategory,
         };
     }
 
+    [HttpPost]
+    public async Task<IActionResult> SetUseProxy([FromQuery] string key, [FromQuery] bool useProxy)
+    {
+        if (key != this.config["CacheClearKey"])
+            return BadRequest();
+
+        useFileProxy = useProxy;
+        return this.Ok(useFileProxy);
+    }
+    
     public class FileMeta
     {
         public long CacheSize { get; set; }

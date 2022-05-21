@@ -107,14 +107,14 @@ public class FileCacheService
         var fileName = response.Content.Headers.ContentDisposition?.FileName;
         fileName ??= url.Split('/').Last();
 
-        return new CachedFile(id, cacheKey, cachedPath, content.Length, response.Content.Headers.ContentType?.MediaType, fileName, category);
+        return new CachedFile(id, cacheKey, cachedPath, content.Length, response.Content.Headers.ContentType?.MediaType, fileName, category, url);
     }
 
     public class CachedFile
     {
         private readonly WeakReference<byte[]> data = new(null);
 
-        public CachedFile(string id, string cacheKey, FileInfo cachedFile, long length, string? contentType, string originalName, FileCategory category)
+        public CachedFile(string id, string cacheKey, FileInfo cachedFile, long length, string? contentType, string originalName, FileCategory category, string originalUrl)
         {
             this.CacheKey = cacheKey;
             this.CachedFileInfo = cachedFile;
@@ -123,21 +123,24 @@ public class FileCacheService
             this.Id = id;
             this.Category = category;
             this.Length = length;
+            this.OriginalUrl = originalUrl;
         }
 
-        public string CacheKey { get; set; }
+        public string CacheKey { get; private set; }
 
-        public string OriginalName { get; set; }
+        public string OriginalName { get; private set; }
 
-        public string? ContentType { get; set; }
+        public string? ContentType { get; private set; }
 
-        public FileInfo CachedFileInfo { get; set; }
+        public FileInfo CachedFileInfo { get; private set; }
 
-        public string Id { get; set; }
+        public string Id { get; private set; }
 
-        public FileCategory Category { get; set; }
+        public FileCategory Category { get; private set; }
 
         public long Length { get; private set; }
+        
+        public string OriginalUrl { get; private set; }
 
         public enum FileCategory
         {
