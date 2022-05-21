@@ -9,13 +9,17 @@ namespace XLWebServices.Controllers;
 public class ReleaseController : ControllerBase
 {
     private readonly DalamudReleaseDataService releaseCache;
+    private readonly FileCacheService cache;
     private readonly IConfiguration configuration;
 
-    private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
+    private static readonly Counter DownloadsOverTime =
+        Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
 
-    public ReleaseController(DalamudReleaseDataService releaseCache, IConfiguration configuration)
+    public ReleaseController(DalamudReleaseDataService releaseCache, FileCacheService cache,
+        IConfiguration configuration)
     {
         this.releaseCache = releaseCache;
+        this.cache = cache;
         this.configuration = configuration;
     }
 
@@ -56,6 +60,33 @@ public class ReleaseController : ControllerBase
     public IActionResult Meta()
     {
         return new JsonResult(this.releaseCache.DalamudVersions);
+    }
+
+    [HttpGet("{kind}/{version}")]
+    public async Task<IActionResult> Runtime(string version, string kind)
+    {
+        if (this.releaseCache.DalamudVersions.All(x => x.Value.RuntimeVersion != version))
+            return this.BadRequest("Invalid version");
+
+        switch (kind)
+        {
+            case "WindowsDesktop":
+            {
+                var cachedFile = await this.cache.CacheFile("DNRWindows", $"{version}",
+                    $"https://dotnetcli.azureedge.net/dotnet/WindowsDesktop/{version}/windowsdesktop-runtime-{version}-win-x64.zip",
+                    FileCacheService.CachedFile.FileCategory.Runtime);
+                return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+            }
+            case "DotNet":
+            {
+                var cachedFile = await this.cache.CacheFile("DNR", $"{version}",
+                    $"https://dotnetcli.azureedge.net/dotnet/Runtime/{version}/dotnet-runtime-{version}-win-x64.zip",
+                    FileCacheService.CachedFile.FileCategory.Runtime);
+                return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+            }
+            default:
+                return this.BadRequest("Invalid kind");
+        }
     }
 
     [HttpPost]

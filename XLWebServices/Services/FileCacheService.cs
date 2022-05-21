@@ -144,6 +144,7 @@ public class FileCacheService
             Release,
             Plugin,
             Asset,
+            Runtime,
             Dalamud,
         }
 
