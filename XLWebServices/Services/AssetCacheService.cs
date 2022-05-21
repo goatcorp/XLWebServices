@@ -48,7 +48,7 @@ public class AssetCacheService
 
                 var file = await this.cache.CacheFile(asset.FileName, assetsInfo.Version.ToString(), fileUrl,
                     FileCacheService.CachedFile.FileCategory.Asset);
-                //asset.Url = $"{this.config["HostedUrl"]}/File/Get/{file.Id}";
+                asset.Url = $"{this.config["HostedUrl"]}/File/Get/{file.Id}";
             }
         }
 
