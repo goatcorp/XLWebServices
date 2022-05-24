@@ -84,6 +84,12 @@ public class ReleaseController : ControllerBase
                     FileCacheService.CachedFile.FileCategory.Runtime);
                 return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
             }
+            case "Hashes":
+            {
+                var cachedFile = await this.cache.CacheFile("DNRHashes", $"{version}", string.Format(this.configuration["RuntimeHashesUrl"], version),
+                    FileCacheService.CachedFile.FileCategory.Runtime);
+                return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+            }
             default:
                 return this.BadRequest("Invalid kind");
         }
