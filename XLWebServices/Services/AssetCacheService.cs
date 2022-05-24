@@ -38,8 +38,6 @@ public class AssetCacheService
         if (assetsInfo == null)
             throw new Exception("Couldn't fetch assets.");
 
-        this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Asset);
-
         foreach (var asset in assetsInfo.Assets)
         {
             if (asset.Url.Contains("github"))
