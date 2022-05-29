@@ -55,20 +55,36 @@ public class DalamudReleaseDataService
             throw new Exception($"Repo {repoName} not found");
 
         var releasesDict = new Dictionary<string, DalamudVersion>();
+        
+        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, sha);
+        release.Changelog = DalamudChangelogs.FirstOrDefault(x => x.Version == release.AssemblyVersion);
+
+        releasesDict.Add("release", release);
 
         foreach (var content in tree)
         {
             if (content.Type != ContentType.Dir || content.Name == ".github" || content.Name == "runtimehashes")
                 continue;
 
-            releasesDict.Add(content.Name, await GetDalamudRelease(content.Name, repoOwner, repoName, sha));
+            var tempRelease = await GetDalamudRelease(content.Name, repoOwner, repoName, sha);
+            
+
+            if (content.Name == "canary")
+            {
+                if (Version.Parse(release.AssemblyVersion) < Version.Parse(tempRelease.AssemblyVersion))
+                {
+                    tempRelease.Changelog = release.Changelog;
+                }
+                else
+                {
+                    this.logger.LogInformation("Canary version is older than release version, skipping({Release} >= {Canary})", release.AssemblyVersion, tempRelease.AssemblyVersion);
+                    continue;
+                }
+            }
+
+            releasesDict.Add(content.Name, tempRelease);
         }
-
-        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, sha);
-        release.Changelog = DalamudChangelogs.FirstOrDefault(x => x.Version == release.AssemblyVersion);
-
-        releasesDict.Add("release", release);
-
+        
         var discordMessage =
             $"Release: {release.AssemblyVersion}({release.Changelog?.Changes.Count} Changes)\n";
 

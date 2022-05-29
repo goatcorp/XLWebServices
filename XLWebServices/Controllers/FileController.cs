@@ -10,7 +10,8 @@ public class FileController : ControllerBase
     private readonly FileCacheService cache;
     private readonly IConfiguration config;
     
-    private static bool useFileProxy = true;
+    private static bool alwaysUseFileProxy = false;
+    private static bool noAllowForceProxy = false;
 
     public FileController(FileCacheService cache, IConfiguration config)
     {
@@ -20,7 +21,7 @@ public class FileController : ControllerBase
 
     [HttpGet("{id}")]
     [ResponseCache(Duration = 2592000)]
-    public IActionResult Get(string id)
+    public IActionResult Get(string id, [FromQuery] bool forceProxy = false)
     {
         var file = this.cache.GetCachedFile(id);
 
@@ -29,8 +30,32 @@ public class FileController : ControllerBase
             return NotFound();
         }
 
-        if (!useFileProxy)
+        if (alwaysUseFileProxy)
+        {
+            var contentType = file.ContentType;
+            contentType ??= "application/octet-stream";
+
+            return File(file.GetData(), contentType, file.OriginalName);
+        }
+
+        return Redirect(file.OriginalUrl);
+    }
+    
+    [HttpGet("{id}")]
+    [ResponseCache(Duration = 2592000)]
+    public IActionResult GetProxy(string id)
+    {
+        var file = this.cache.GetCachedFile(id);
+
+        if (file == null)
+        {
+            return NotFound();
+        }
+
+        if (noAllowForceProxy)
+        {
             return Redirect(file.OriginalUrl);
+        }
 
         var contentType = file.ContentType;
         contentType ??= "application/octet-stream";
@@ -49,13 +74,14 @@ public class FileController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> SetUseProxy([FromQuery] string key, [FromQuery] bool useProxy)
+    public async Task<IActionResult> SetUseProxy([FromQuery] string key, [FromQuery] bool useProxy, [FromQuery] bool allowForce)
     {
         if (key != this.config["CacheClearKey"])
             return BadRequest();
 
-        useFileProxy = useProxy;
-        return this.Ok(useFileProxy);
+        alwaysUseFileProxy = useProxy;
+        noAllowForceProxy = allowForce;
+        return this.Ok(alwaysUseFileProxy);
     }
     
     public class FileMeta

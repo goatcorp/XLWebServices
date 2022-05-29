@@ -24,7 +24,7 @@ public class ReleaseController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "")
+    public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control")
     {
         if (string.IsNullOrEmpty(track))
             track = "release";
@@ -40,6 +40,10 @@ public class ReleaseController : ControllerBase
             case "release":
             {
                 DownloadsOverTime.WithLabels(appId).Inc();
+                
+                if (bucket == "Canary" && this.releaseCache.DalamudVersions.ContainsKey("canary"))
+                    return new JsonResult(this.releaseCache.DalamudVersions["canary"]);
+                
                 return new JsonResult(this.releaseCache.DalamudVersions["release"]);
             }
 
