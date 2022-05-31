@@ -69,7 +69,7 @@ public class ReleaseController : ControllerBase
     [HttpGet("{kind}/{version}")]
     public async Task<IActionResult> Runtime(string version, string kind)
     {
-        if (this.releaseCache.DalamudVersions.All(x => x.Value.RuntimeVersion != version))
+        if (this.releaseCache.DalamudVersions.All(x => x.Value.RuntimeVersion != version) && version != "5.0.6")
             return this.BadRequest("Invalid version");
 
         switch (kind)
