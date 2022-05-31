@@ -53,7 +53,7 @@ public class ReleaseController : ControllerBase
             default:
             {
                 if (!this.releaseCache.DalamudVersions.TryGetValue(track, out var release))
-                    return this.BadRequest("Invalid track");
+                    return new JsonResult(this.releaseCache.DalamudVersions["release"]);
 
                 return new JsonResult(release);
             }
