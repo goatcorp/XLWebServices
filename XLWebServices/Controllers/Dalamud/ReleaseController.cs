@@ -11,16 +11,20 @@ public class ReleaseController : ControllerBase
     private readonly DalamudReleaseDataService releaseCache;
     private readonly FileCacheService cache;
     private readonly IConfiguration configuration;
+    private readonly DiscordHookService discordHookService;
 
     private static readonly Counter DownloadsOverTime =
         Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
 
+    private bool isUseCanary = false;
+
     public ReleaseController(DalamudReleaseDataService releaseCache, FileCacheService cache,
-        IConfiguration configuration)
+        IConfiguration configuration, DiscordHookService discordHookService)
     {
         this.releaseCache = releaseCache;
         this.cache = cache;
         this.configuration = configuration;
+        this.discordHookService = discordHookService;
     }
 
     [HttpGet]
@@ -41,7 +45,7 @@ public class ReleaseController : ControllerBase
             {
                 DownloadsOverTime.WithLabels(appId).Inc();
                 
-                if (bucket == "Canary" && this.releaseCache.DalamudVersions.ContainsKey("canary"))
+                if (bucket == "Canary" && this.releaseCache.DalamudVersions.ContainsKey("canary") && this.isUseCanary)
                     return new JsonResult(this.releaseCache.DalamudVersions["canary"]);
                 
                 return new JsonResult(this.releaseCache.DalamudVersions["release"]);
@@ -97,6 +101,19 @@ public class ReleaseController : ControllerBase
             default:
                 return this.BadRequest("Invalid kind");
         }
+    }
+    
+    [HttpPost]
+    public async Task<IActionResult> SetUseCanary([FromQuery] string key, [FromQuery] bool useCanary)
+    {
+        if (key != this.configuration["CacheClearKey"])
+            return BadRequest();
+
+        this.isUseCanary = useCanary;
+        
+        await this.discordHookService.SendSuccess($"Canary Mode is {(useCanary ? "now being distributed" : "no longer being distributed")}", "Dalamud Canary");
+        
+        return this.Ok(useCanary);
     }
 
     [HttpPost]
