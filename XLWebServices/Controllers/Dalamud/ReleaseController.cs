@@ -16,7 +16,7 @@ public class ReleaseController : ControllerBase
     private static readonly Counter DownloadsOverTime =
         Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
 
-    private bool isUseCanary = false;
+    private static bool isUseCanary = false;
 
     public ReleaseController(DalamudReleaseDataService releaseCache, FileCacheService cache,
         IConfiguration configuration, DiscordHookService discordHookService)
@@ -45,7 +45,7 @@ public class ReleaseController : ControllerBase
             {
                 DownloadsOverTime.WithLabels(appId).Inc();
                 
-                if (bucket == "Canary" && this.releaseCache.DalamudVersions.ContainsKey("canary") && this.isUseCanary)
+                if (bucket == "Canary" && this.releaseCache.DalamudVersions.ContainsKey("canary") && isUseCanary)
                     return new JsonResult(this.releaseCache.DalamudVersions["canary"]);
                 
                 return new JsonResult(this.releaseCache.DalamudVersions["release"]);
@@ -109,10 +109,7 @@ public class ReleaseController : ControllerBase
         if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
-        this.isUseCanary = useCanary;
-        
-        await this.discordHookService.SendSuccess($"Canary Mode is {(useCanary ? "now being distributed" : "no longer being distributed")}", "Dalamud Canary");
-        
+        isUseCanary = useCanary;
         return this.Ok(useCanary);
     }
 
