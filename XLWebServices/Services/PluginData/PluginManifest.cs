@@ -207,4 +207,17 @@ public class PluginManifest
     /// </summary>
     [JsonPropertyName("FeedbackWebhook")]
     public string? FeedbackWebhook { get; set; }
+    
+    /// <summary>
+    /// Gets a value indicating whether this plugin is DIP17.
+    /// To be removed.
+    /// </summary>
+    [JsonPropertyName("_isDip17Plugin")]
+    public bool IsDip17Plugin { get; set; } = false;
+
+    /// <summary>
+    /// Gets the DIP17 channel name.
+    /// </summary>
+    [JsonPropertyName("_Dip17Channel")]
+    public string? Dip17Channel { get; set; }
 }

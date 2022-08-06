@@ -1,6 +1,8 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using Octokit;
+using Tomlyn;
 
 namespace XLWebServices.Services.PluginData;
 
@@ -15,9 +17,13 @@ public class PluginDataService
     private readonly HttpClient _client;
 
     public IReadOnlyList<PluginManifest>? PluginMaster { get; private set; }
-    public IReadOnlyList<PluginManifest>? PluginMasterNoProxy { get; private set; }
+    //public IReadOnlyList<PluginManifest>? PluginMasterNoProxy { get; private set; }
+    
+    public IReadOnlyDictionary<string, List<PluginManifest>> PluginMastersDip17 { get; private set; }
 
     public string RepoSha { get; private set; }
+    
+    public string RepoShaDip17 { get; private set; }
 
     public DateTime LastUpdate { get; private set; }
 
@@ -59,11 +65,16 @@ public class PluginDataService
                 await _github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, "testing/", sha);
 
             var pluginMaster = new List<PluginManifest>();
-            var noProxyPluginMaster = new List<PluginManifest>();
+            //var noProxyPluginMaster = new List<PluginManifest>();
 
+            var d17 = await ClearCacheD17(pluginMaster);
+            
             foreach (var repositoryContent in pluginsDir)
             {
-                var manifest = await this.GetManifest(repoOwner, repoName, false, repositoryContent.Name, sha);
+                if (pluginMaster.Any(x => x.InternalName == repositoryContent.Name))
+                    continue;
+                
+                var manifest = await this.GetManifest(repoOwner, repoName, "plugins", repositoryContent.Name, sha);
                 if (manifest == null)
                     throw new Exception($"Could not fetch manifest for release plugin: {repositoryContent.Name}");
 
@@ -75,7 +86,7 @@ public class PluginDataService
                 var testingVersion = testingDir.FirstOrDefault(x => x.Name == repositoryContent.Name);
                 if (testingVersion != null)
                 {
-                    var testingManifest = await this.GetManifest(repoOwner, repoName, true, repositoryContent.Name, sha);
+                    var testingManifest = await this.GetManifest(repoOwner, repoName, "testing", repositoryContent.Name, sha);
                     if (testingManifest == null)
                         throw new Exception(
                             $"Plugin had testing version, but could not fetch manifest: {repositoryContent.Name}");
@@ -93,23 +104,23 @@ public class PluginDataService
 
                 var noProxyManifest = new PluginManifest(manifest);
 
-                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel);
-                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel);
+                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
+                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, false);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
 
-                noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
-                noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
+                //noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
+                //noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
 
                 pluginMaster.Add(manifest);
-                noProxyPluginMaster.Add(noProxyManifest);
+                //noProxyPluginMaster.Add(noProxyManifest);
             }
 
             foreach (var repositoryContent in testingDir)
             {
                 if (pluginMaster.Any(x => x.InternalName == repositoryContent.Name))
                     continue;
-
-                var manifest = await this.GetManifest(repoOwner, repoName, true, repositoryContent.Name, sha);
+                
+                var manifest = await this.GetManifest(repoOwner, repoName, "testing", repositoryContent.Name, sha);
                 if (manifest == null)
                     throw new Exception($"Could not fetch manifest for testing plugin: {repositoryContent.Name}");
 
@@ -124,24 +135,26 @@ public class PluginDataService
 
                 var noProxyManifest = new PluginManifest(manifest);
 
-                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel);
-                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel);
+                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
+                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, false);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, manifest.InternalName, "plugins", apiLevel);
 
-                noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
-                noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
+                //noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
+                //noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
 
                 pluginMaster.Add(manifest);
-                noProxyPluginMaster.Add(noProxyManifest);
+                //noProxyPluginMaster.Add(noProxyManifest);
             }
 
             PluginMaster = pluginMaster;
-            PluginMasterNoProxy = noProxyPluginMaster;
+            PluginMastersDip17 = d17.Manifests;
+            //PluginMasterNoProxy = noProxyPluginMaster;
             RepoSha = sha;
+            RepoShaDip17 = d17.Sha;
             LastUpdate = DateTime.Now;
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
-            await this._discord.SendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}",
+            await this._discord.SendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}\nSHA(D17): {RepoShaDip17}",
                 "PluginMaster updated");
         }
         catch (Exception e)
@@ -150,6 +163,93 @@ public class PluginDataService
             await this._discord.SendError("Failed to reload plugins", "PluginMaster error");
             throw;
         }
+    }
+
+    public async Task<(Dictionary<string, List<PluginManifest>> Manifests, string Sha)> ClearCacheD17(List<PluginManifest> pluginMaster)
+    {
+        var repoOwner = _configuration["GitHub:PluginRepositoryD17:Owner"];
+        var repoName = _configuration["GitHub:PluginRepositoryD17:Name"];
+        var apiLevel = _configuration["ApiLevel"];
+
+        var commit = await _github.Client.Repository.Commit.Get(repoOwner, repoName, "main");
+        var sha = commit.Sha;
+
+        var downloadTemplate = _configuration["TemplateDownload"];
+        var updateTemplate = _configuration["TemplateUpdate"];
+
+        var bannedPlugins =
+            await _client.GetFromJsonAsync<BannedPlugin[]>(_configuration["BannedPlugin"]);
+        if (bannedPlugins == null)
+            throw new Exception("Failed to load banned plugins");
+        
+        var stateUrl = $"https://raw.githubusercontent.com/{repoOwner}/{repoName}/{sha}/State.toml";
+        var state = Toml.ToModel<Dip17State>(await _client.GetStringAsync(stateUrl));
+
+        var d17Master = new Dictionary<string, List<PluginManifest>>();
+
+        async Task ProcessPluginsInChannel(Dip17State.Channel channel, string channelName)
+        {
+            foreach (var (pluginName, pluginState) in channel.Plugins)
+            {
+                var manifest = await GetManifest(repoOwner, repoName, channelName, pluginName, sha);
+                
+                if (manifest == null)
+                    throw new Exception($"Could not fetch manifest for DIP17 plugin: {channelName}/{pluginName}");
+
+                var banned = bannedPlugins.LastOrDefault(x => x.Name == manifest.InternalName);
+                var isHide = banned != null && manifest.AssemblyVersion <= banned.AssemblyVersion ||
+                             manifest.DalamudApiLevel.ToString() != apiLevel;
+                manifest.IsHide = isHide;
+                
+                manifest.Changelog =
+                    pluginState.Changelogs?.FirstOrDefault(x => x.Key == manifest.AssemblyVersion.ToString()).Value;
+
+                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, true);
+                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, true);
+                manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
+                
+                manifest.DownloadCount = await _redis.GetCount(manifest.InternalName);
+
+                manifest.IsDip17Plugin = true;
+                manifest.Dip17Channel = channelName;
+                
+                d17Master[channelName].Add(manifest);
+
+                if (channelName == "stable")
+                {
+                    pluginMaster.Add(manifest);
+                }
+                else if (channelName == "testing-live")
+                {
+                    // TODO: Changelog for testing versions?
+                    
+                    var stableVersion = pluginMaster.FirstOrDefault(x => x.InternalName == pluginName);
+                    if (stableVersion != null)
+                    {
+                        stableVersion.TestingAssemblyVersion = manifest.AssemblyVersion;
+                        stableVersion.IsTestingExclusive = false;
+                    }
+                    else
+                    {
+                        manifest.TestingAssemblyVersion = manifest.AssemblyVersion;
+                        manifest.IsTestingExclusive = true;
+                        pluginMaster.Add(manifest);
+                    }
+                }
+            }
+        }
+
+        d17Master["stable"] = new();
+        var stableChannel = state.Channels.First(x => x.Key == "stable");
+        await ProcessPluginsInChannel(stableChannel.Value, stableChannel.Key);
+        
+        foreach (var (channelName, channel) in state.Channels.Where(x => x.Key != "stable"))
+        {
+            d17Master[channelName] = new();
+            await ProcessPluginsInChannel(channel, channelName);
+        }
+
+        return (d17Master, sha);
     }
 
     private async Task<(long LastUpdate, string? Changelog)> GetPluginInfo(PluginManifest manifest, RepositoryContent content, string repoOwner, string repoName)
@@ -205,10 +305,9 @@ public class PluginDataService
         return commits[0];
     }
 
-    private async Task<PluginManifest?> GetManifest(string repoOwner, string repoName, bool isTesting, string pluginName, string sha)
+    private async Task<PluginManifest?> GetManifest(string repoOwner, string repoName, string channel, string pluginName, string sha)
     {
-        var folder = isTesting ? "testing" : "plugins";
-        var manifestUrl = $"https://raw.githubusercontent.com/{repoOwner}/{repoName}/{sha}/{folder}/{pluginName}/{pluginName}.json";
+        var manifestUrl = $"https://raw.githubusercontent.com/{repoOwner}/{repoName}/{sha}/{channel}/{pluginName}/{pluginName}.json";
         return await _client.GetFromJsonAsync<PluginManifest>(manifestUrl, new JsonSerializerOptions
         {
             AllowTrailingCommas = true, // Haplo's manifest has trailing commas

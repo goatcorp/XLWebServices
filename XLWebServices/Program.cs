@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Prometheus;
+using XLWebServices;
 using XLWebServices.Services;
 using XLWebServices.Services.PluginData;
 
@@ -53,6 +54,9 @@ app.UseEndpoints(endpoints =>
 });
 
 // Initialize services
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("Starting XLWebServices {Version}", Util.GetGitHash());
+
 app.Services.GetRequiredService<RedisService>();
 app.Services.GetRequiredService<GitHubService>();
 

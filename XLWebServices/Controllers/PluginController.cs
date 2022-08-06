@@ -34,11 +34,11 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet("{internalName}")]
-    public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false)
+    public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false, [FromQuery(Name = "isDip17")] bool isDip17 = false)
     {
         var masterList = this.pluginData.PluginMaster;
-        if (!UseFileProxy)
-            masterList = this.pluginData.PluginMasterNoProxy;
+        //if (!UseFileProxy)
+        //    masterList = this.pluginData.PluginMasterNoProxy;
 
         var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
         if (manifest == null)
@@ -49,13 +49,26 @@ public class PluginController : ControllerBase
         await this.redis.IncrementCount(internalName);
         await this.redis.IncrementCount(RedisCumulativeKey);
 
-        const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
-        var folder = isTesting ? "testing" : "plugins";
-        var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-        var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.RepoSha}",
-            string.Format(githubPath, this.pluginData.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+        if (isDip17)
+        {
+            const string githubPath = "https://raw.githubusercontent.com/goatcorp/PluginDistD17/{0}/{1}/{2}/latest.zip";
+            var folder = isTesting ? "testing-live" : "stable";
+            var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
+            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.RepoShaDip17}",
+                string.Format(githubPath, this.pluginData.RepoShaDip17, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
-        return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+            return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+        }
+        else
+        {
+            const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
+            var folder = isTesting ? "testing" : "plugins";
+            var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
+            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.RepoSha}",
+                string.Format(githubPath, this.pluginData.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+
+            return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
+        }
     }
 
     [HttpGet]
@@ -73,18 +86,20 @@ public class PluginController : ControllerBase
     [HttpGet]
     public IActionResult PluginMaster([FromQuery] bool proxy = true)
     {
-        if (proxy && UseFileProxy)
-        {
+        //if (proxy && UseFileProxy)
+        //{
             return Content(JsonSerializer.Serialize(this.pluginData.PluginMaster, new JsonSerializerOptions
             {
                 WriteIndented = true,
             }), "application/json");
-        }
+        //}
 
+        /*
         return Content(JsonSerializer.Serialize(this.pluginData.PluginMasterNoProxy, new JsonSerializerOptions
         {
             WriteIndented = true,
         }), "application/json");
+        */
     }
 
     [HttpGet("{internalName}")]

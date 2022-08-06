@@ -13,11 +13,12 @@
         <PackageReference Include="prometheus-net.AspNetCore" Version="5.0.2" />
         <PackageReference Include="StackExchange.Redis" Version="2.2.88" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
+        <PackageReference Include="Tomlyn" Version="0.15.0" />
     </ItemGroup>
 
     <ItemGroup>
-      <Reference Include="Octokit, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-        <HintPath>..\..\octokit.net\Octokit\bin\Debug\netstandard2.0\Octokit.dll</HintPath>
+      <Reference Include="Octokit">
+        <HintPath>Octokit.dll</HintPath>
       </Reference>
     </ItemGroup>
 
