@@ -144,10 +144,12 @@ public class DalamudReleaseDataService
 
         var changelogs = new List<DalamudChangelog>();
 
-        for (var i = 0; i < orderedTags.Count; i++)
+        var maxChangelogs = Math.Min(15, orderedTags.Count);
+
+        for (var i = 0; i < maxChangelogs; i++)
         {
             var currentTag = orderedTags[i];
-            if (i + 1 >= orderedTags.Count)
+            if (i + 1 >= maxChangelogs)
                 break;
 
             var nextTag = orderedTags[i + 1];

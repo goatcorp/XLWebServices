@@ -8,7 +8,7 @@ namespace XLWebServices.Controllers;
 [Route("Dalamud/Release/[action]")]
 public class ReleaseController : ControllerBase
 {
-    private readonly DalamudReleaseDataService releaseCache;
+    private readonly FallibleService<DalamudReleaseDataService> releaseCache;
     private readonly FileCacheService cache;
     private readonly IConfiguration configuration;
     private readonly DiscordHookService discordHookService;
@@ -18,7 +18,7 @@ public class ReleaseController : ControllerBase
 
     private static bool isUseCanary = false;
 
-    public ReleaseController(DalamudReleaseDataService releaseCache, FileCacheService cache,
+    public ReleaseController(FallibleService<DalamudReleaseDataService> releaseCache, FileCacheService cache,
         IConfiguration configuration, DiscordHookService discordHookService)
     {
         this.releaseCache = releaseCache;
@@ -30,6 +30,9 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control")
     {
+        if (this.releaseCache.HasFailed)
+            return StatusCode(500, "Precondition failed");
+        
         if (string.IsNullOrEmpty(track))
             track = "release";
 
@@ -45,19 +48,19 @@ public class ReleaseController : ControllerBase
             {
                 DownloadsOverTime.WithLabels(appId).Inc();
                 
-                if (bucket == "Canary" && this.releaseCache.DalamudVersions.ContainsKey("canary") && isUseCanary)
-                    return new JsonResult(this.releaseCache.DalamudVersions["canary"]);
+                if (bucket == "Canary" && this.releaseCache.Get()!.DalamudVersions.ContainsKey("canary") && isUseCanary)
+                    return new JsonResult(this.releaseCache.Get()!.DalamudVersions["canary"]);
                 
-                return new JsonResult(this.releaseCache.DalamudVersions["release"]);
+                return new JsonResult(this.releaseCache.Get()!.DalamudVersions["release"]);
             }
 
             case "staging":
-                return new JsonResult(this.releaseCache.DalamudVersions["stg"]);
+                return new JsonResult(this.releaseCache.Get()!.DalamudVersions["stg"]);
 
             default:
             {
-                if (!this.releaseCache.DalamudVersions.TryGetValue(track, out var release))
-                    return new JsonResult(this.releaseCache.DalamudVersions["release"]);
+                if (!this.releaseCache.Get()!.DalamudVersions.TryGetValue(track, out var release))
+                    return new JsonResult(this.releaseCache.Get()!.DalamudVersions["release"]);
 
                 return new JsonResult(release);
             }
@@ -67,13 +70,16 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult Meta()
     {
-        return new JsonResult(this.releaseCache.DalamudVersions);
+        return new JsonResult(this.releaseCache.Get()!.DalamudVersions);
     }
 
     [HttpGet("{kind}/{version}")]
     public async Task<IActionResult> Runtime(string version, string kind)
     {
-        if (this.releaseCache.DalamudVersions.All(x => x.Value.RuntimeVersion != version) && version != "5.0.6")
+        if (this.releaseCache.HasFailed)
+            return StatusCode(500, "Precondition failed");
+        
+        if (this.releaseCache.Get()!.DalamudVersions.All(x => x.Value.RuntimeVersion != version) && version != "5.0.6")
             return this.BadRequest("Invalid version");
 
         switch (kind)
@@ -119,8 +125,8 @@ public class ReleaseController : ControllerBase
         if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
-        await this.releaseCache.ClearCache();
+        await this.releaseCache.Get()!.ClearCache();
 
-        return Ok();
+        return Ok(this.releaseCache.HasFailed);
     }
 }

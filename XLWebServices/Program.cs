@@ -7,14 +7,14 @@ using XLWebServices.Services.PluginData;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddSingleton<RedisService>();
+builder.Services.AddSingleton<FallibleService<RedisService>>();
 builder.Services.AddSingleton<DiscordHookService>();
 builder.Services.AddSingleton<GitHubService>();
 builder.Services.AddSingleton<FileCacheService>();
-builder.Services.AddSingleton<PluginDataService>();
-builder.Services.AddSingleton<LauncherReleaseDataService>();
-builder.Services.AddSingleton<AssetCacheService>();
-builder.Services.AddSingleton<DalamudReleaseDataService>();
+builder.Services.AddSingleton<FallibleService<PluginDataService>>();
+builder.Services.AddSingleton<FallibleService<LauncherReleaseDataService>>();
+builder.Services.AddSingleton<FallibleService<AssetCacheService>>();
+builder.Services.AddSingleton<FallibleService<DalamudReleaseDataService>>();
 
 builder.Services.AddResponseCaching();
 
@@ -57,19 +57,24 @@ app.UseEndpoints(endpoints =>
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Starting XLWebServices {Version}", Util.GetGitHash());
 
-app.Services.GetRequiredService<RedisService>();
+var discord = app.Services.GetRequiredService<DiscordHookService>();
+
+var redis = app.Services.GetRequiredService<FallibleService<RedisService>>();
+if (redis.HasFailed)
+    await discord.SendError("Couldn't connect to redis", "Redis");
+
 app.Services.GetRequiredService<GitHubService>();
 
-var acs = app.Services.GetRequiredService<AssetCacheService>();
-await acs.ClearCache();
+var acs = app.Services.GetRequiredService<FallibleService<AssetCacheService>>();
+await acs.RunFallibleAsync(s => s.ClearCache());
 
-var drs = app.Services.GetRequiredService<DalamudReleaseDataService>();
-await drs.ClearCache();
+var drs = app.Services.GetRequiredService<FallibleService<DalamudReleaseDataService>>();
+await drs.RunFallibleAsync(s => s.ClearCache());
 
-var pds = app.Services.GetRequiredService<PluginDataService>();
-await pds.ClearCache();
+var pds = app.Services.GetRequiredService<FallibleService<PluginDataService>>();
+await pds.RunFallibleAsync(s => s.ClearCache());
 
-var rds = app.Services.GetRequiredService<LauncherReleaseDataService>();
-await rds.ClearCache();
+var rds = app.Services.GetRequiredService<FallibleService<LauncherReleaseDataService>>();
+await rds.RunFallibleAsync(s => s.ClearCache());
 
 app.Run();

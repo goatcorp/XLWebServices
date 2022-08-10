@@ -12,8 +12,8 @@ public class GitHubProxyController: ControllerBase
 {
     private readonly ILogger<GitHubProxyController> _logger;
     private readonly IConfiguration _configuration;
-    private readonly RedisService _redis;
-    private readonly LauncherReleaseDataService _launcherReleaseData;
+    private readonly FallibleService<RedisService> _redis;
+    private readonly FallibleService<LauncherReleaseDataService> _launcherReleaseData;
     private readonly FileCacheService _cache;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_startups", "XIVLauncher Unique Startups", "Version");
@@ -24,7 +24,7 @@ public class GitHubProxyController: ControllerBase
     const string RedisKeyUniqueInstalls = "XLUniqueInstalls";
     const string RedisKeyStarts = "XLStarts";
 
-    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, RedisService redis, LauncherReleaseDataService launcherReleaseData, FileCacheService cache)
+    public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, FallibleService<RedisService> redis, FallibleService<LauncherReleaseDataService> launcherReleaseData, FileCacheService cache)
     {
         _logger = logger;
         _configuration = configuration;
@@ -36,6 +36,9 @@ public class GitHubProxyController: ControllerBase
     [HttpGet("{track:alpha}/{file}")]
     public async Task<IActionResult> Update(string file, string track, string? localVersion = null)
     {
+        if (_launcherReleaseData.HasFailed)
+            return StatusCode(502);
+        
         if (!string.IsNullOrEmpty(localVersion))
         {
             if (!SemverRegex.IsMatch(localVersion))
@@ -47,19 +50,18 @@ public class GitHubProxyController: ControllerBase
             if (file == "RELEASES")
             {
                 DownloadsOverTime.WithLabels(localVersion).Inc();
-                await _redis.IncrementCount(RedisKeyStarts);
+                
+                if (!_redis.HasFailed)
+                    await _redis.Get()!.IncrementCount(RedisKeyStarts);
             }
         }
         else if (file == "RELEASES")
         {
             InstallsOverTime.Inc();
             DownloadsOverTime.WithLabels("Setup").Inc();
-            await _redis.IncrementCount(RedisKeyUniqueInstalls);
-        }
-
-        if (track == "Release" && !_configuration["ReleaseEnabled"].ToLower().Equals("true"))
-        {
-            return Conflict("Release track is disabled");
+            
+            if (!_redis.HasFailed)
+                await _redis.Get()!.IncrementCount(RedisKeyUniqueInstalls);
         }
 
         if (file == "RELEASES")
@@ -67,19 +69,19 @@ public class GitHubProxyController: ControllerBase
             switch (track)
             {
                 case "Release":
-                    return Content(this._launcherReleaseData.CachedReleasesList);
+                    return Content(this._launcherReleaseData.Get()!.CachedReleasesList);
                 case "Prerelease":
-                    return Content(this._launcherReleaseData.CachedPrereleasesList);
+                    return Content(this._launcherReleaseData.Get()!.CachedPrereleasesList);
             }
         }
         else
         {
             var allowedFileNames = new[] {
                 "Setup.exe",
-                $"XIVLauncher-{this._launcherReleaseData.CachedRelease.TagName}-delta.nupkg",
-                $"XIVLauncher-{this._launcherReleaseData.CachedRelease.TagName}-full.nupkg",
-                $"XIVLauncher-{this._launcherReleaseData.CachedPrerelease.TagName}-delta.nupkg",
-                $"XIVLauncher-{this._launcherReleaseData.CachedPrerelease.TagName}-full.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedRelease.TagName}-delta.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedRelease.TagName}-full.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedPrerelease.TagName}-delta.nupkg",
+                $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedPrerelease.TagName}-full.nupkg",
                 "CHANGELOG.txt",
             };
 
@@ -90,15 +92,15 @@ public class GitHubProxyController: ControllerBase
             {
                 case "Release":
                 {
-                    var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.CachedRelease, file);
-                    var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.CachedRelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
+                    var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.Get()!.CachedRelease, file);
+                    var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.Get()!.CachedRelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
                     return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
                 }
 
                 case "Prerelease":
                 {
-                    var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.CachedPrerelease, file);
-                    var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
+                    var url = LauncherReleaseDataService.GetDownloadUrlForRelease(this._launcherReleaseData.Get()!.CachedPrerelease, file);
+                    var cachedFile = await _cache.CacheFile(file,  this._launcherReleaseData.Get()!.CachedPrerelease.TagName, url, FileCacheService.CachedFile.FileCategory.Release);
                     return Redirect($"{this._configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
                 }
             }
@@ -114,20 +116,23 @@ public class GitHubProxyController: ControllerBase
         if (key != _configuration["CacheClearKey"])
             return BadRequest();
 
-        await this._launcherReleaseData.ClearCache();
+        await this._launcherReleaseData.RunFallibleAsync(s => s.ClearCache());
 
-        return Ok();
+        return Ok(_launcherReleaseData.HasFailed);
     }
 
     [HttpGet]
     public async Task<ProxyMeta> Meta()
     {
+        if (_launcherReleaseData.HasFailed || _redis.HasFailed)
+            throw new Exception("Precondition failed");
+        
         return new ProxyMeta
         {
-            TotalDownloads = await _redis.GetCount(RedisKeyStarts),
-            UniqueInstalls = await _redis.GetCount(RedisKeyUniqueInstalls),
-            ReleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.CachedRelease, this._launcherReleaseData.ReleaseChangelog),
-            PrereleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.CachedPrerelease, this._launcherReleaseData.PrereleaseChangelog),
+            TotalDownloads = await _redis.Get()!.GetCount(RedisKeyStarts),
+            UniqueInstalls = await _redis.Get()!.GetCount(RedisKeyUniqueInstalls),
+            ReleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.Get()!.CachedRelease, this._launcherReleaseData.Get()!.ReleaseChangelog),
+            PrereleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.Get()!.CachedPrerelease, this._launcherReleaseData.Get()!.PrereleaseChangelog),
         };
     }
 

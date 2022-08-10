@@ -11,10 +11,10 @@ namespace XLWebServices.Controllers;
 public class PluginController : ControllerBase
 {
     private readonly ILogger<PluginController> logger;
-    private readonly RedisService redis;
+    private readonly FallibleService<RedisService> redis;
     private readonly IConfiguration configuration;
-    private readonly PluginDataService pluginData;
-    private readonly DalamudReleaseDataService releaseData;
+    private readonly FallibleService<PluginDataService> pluginData;
+    private readonly FallibleService<DalamudReleaseDataService> releaseData;
     private readonly FileCacheService cache;
 
     private static bool UseFileProxy = true;
@@ -23,7 +23,7 @@ public class PluginController : ControllerBase
 
     private const string RedisCumulativeKey = "XLPluginDlCumulative";
 
-    public PluginController(ILogger<PluginController> logger, RedisService redis, IConfiguration configuration, PluginDataService pluginData, DalamudReleaseDataService dalamudReleaseData, FileCacheService cache)
+    public PluginController(ILogger<PluginController> logger, FallibleService<RedisService> redis, IConfiguration configuration, FallibleService<PluginDataService> pluginData, FallibleService<DalamudReleaseDataService> dalamudReleaseData, FileCacheService cache)
     {
         this.logger = logger;
         this.redis = redis;
@@ -36,7 +36,10 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false, [FromQuery(Name = "isDip17")] bool isDip17 = false)
     {
-        var masterList = this.pluginData.PluginMaster;
+        if (this.pluginData.HasFailed)
+            return StatusCode(500, "Precondition failed");
+        
+        var masterList = this.pluginData.Get()!.PluginMaster;
         //if (!UseFileProxy)
         //    masterList = this.pluginData.PluginMasterNoProxy;
 
@@ -46,16 +49,19 @@ public class PluginController : ControllerBase
 
         DownloadsOverTime.WithLabels(internalName.ToLower(), isTesting.ToString()).Inc();
 
-        await this.redis.IncrementCount(internalName);
-        await this.redis.IncrementCount(RedisCumulativeKey);
-
+        if (!this.redis.HasFailed)
+        {
+            await this.redis.Get()!.IncrementCount(internalName);
+            await this.redis.Get()!.IncrementCount(RedisCumulativeKey);
+        }
+        
         if (isDip17)
         {
             const string githubPath = "https://raw.githubusercontent.com/goatcorp/PluginDistD17/{0}/{1}/{2}/latest.zip";
             var folder = isTesting ? "testing-live" : "stable";
             var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.RepoShaDip17}",
-                string.Format(githubPath, this.pluginData.RepoShaDip17, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.Get()!.RepoShaDip17}",
+                string.Format(githubPath, this.pluginData.Get()!.RepoShaDip17, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
             return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
         }
@@ -64,8 +70,8 @@ public class PluginController : ControllerBase
             const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
             var folder = isTesting ? "testing" : "plugins";
             var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.RepoSha}",
-                string.Format(githubPath, this.pluginData.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.Get()!.RepoSha}",
+                string.Format(githubPath, this.pluginData.Get()!.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
             return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
         }
@@ -74,10 +80,13 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<Dictionary<string, long>> DownloadCounts()
     {
+        if (this.pluginData.HasFailed || this.redis.HasFailed)
+            throw new Exception("Precondition failed");
+        
         var counts = new Dictionary<string, long>();
-        foreach (var plugin in this.pluginData.PluginMaster!)
+        foreach (var plugin in this.pluginData.Get()!.PluginMaster!)
         {
-            counts.Add(plugin.InternalName, await this.redis.GetCount(plugin.InternalName));
+            counts.Add(plugin.InternalName, await this.redis.Get()!.GetCount(plugin.InternalName));
         }
 
         return counts;
@@ -86,9 +95,12 @@ public class PluginController : ControllerBase
     [HttpGet]
     public IActionResult PluginMaster([FromQuery] bool proxy = true)
     {
+        if (this.pluginData.HasFailed)
+            return StatusCode(500, "Precondition failed");
+        
         //if (proxy && UseFileProxy)
         //{
-            return Content(JsonSerializer.Serialize(this.pluginData.PluginMaster, new JsonSerializerOptions
+            return Content(JsonSerializer.Serialize(this.pluginData.Get()!.PluginMaster, new JsonSerializerOptions
             {
                 WriteIndented = true,
             }), "application/json");
@@ -105,7 +117,10 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public IActionResult Plugin(string internalName)
     {
-        var plugin = this.pluginData.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
+        if (this.pluginData.HasFailed)
+            return StatusCode(500, "Precondition failed");
+        
+        var plugin = this.pluginData.Get()!.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
         if (plugin == null)
             return BadRequest("Invalid plugin");
 
@@ -121,10 +136,10 @@ public class PluginController : ControllerBase
         if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
-        await this.pluginData.ClearCache();
+        await this.pluginData.RunFallibleAsync(s => s.ClearCache());
         this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
 
-        return Ok();
+        return Ok(this.pluginData.HasFailed);
     }
 
     [HttpPost]
@@ -140,19 +155,26 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<PluginMeta> Meta()
     {
+        if (this.pluginData.HasFailed || this.redis.HasFailed)
+            throw new Exception("Precondition failed");
+        
         return new PluginMeta
         {
-            NumPlugins = this.pluginData.PluginMaster!.Count,
-            LastUpdate = this.pluginData.LastUpdate,
-            CumulativeDownloads = await this.redis.GetCount(RedisCumulativeKey),
-            Sha = this.pluginData.RepoSha,
+            NumPlugins = this.pluginData.Get()!.PluginMaster!.Count,
+            LastUpdate = this.pluginData.Get()!.LastUpdate,
+            CumulativeDownloads = await this.redis.Get()!.GetCount(RedisCumulativeKey),
+            Sha = this.pluginData.Get()!.RepoSha,
+            Dip17Sha = this.pluginData.Get()!.RepoShaDip17,
         };
     }
 
     [HttpGet]
     public IReadOnlyList<DalamudReleaseDataService.DalamudChangelog> CoreChangelog()
     {
-        return this.releaseData.DalamudChangelogs;
+        if (this.releaseData.HasFailed)
+            throw new Exception("Precondition failed");
+        
+        return this.releaseData.Get()!.DalamudChangelogs;
     }
 
     public class PluginMeta
@@ -161,5 +183,6 @@ public class PluginController : ControllerBase
         public long CumulativeDownloads { get; init; }
         public DateTime LastUpdate { get; init; }
         public string Sha { get; init; }
+        public string Dip17Sha { get; init; }
     }
 }

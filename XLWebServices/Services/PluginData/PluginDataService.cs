@@ -11,7 +11,7 @@ public class PluginDataService
     private readonly ILogger<PluginDataService> _logger;
     private readonly GitHubService _github;
     private readonly IConfiguration _configuration;
-    private readonly RedisService _redis;
+    private readonly FallibleService<RedisService> _redis;
     private readonly DiscordHookService _discord;
 
     private readonly HttpClient _client;
@@ -27,7 +27,7 @@ public class PluginDataService
 
     public DateTime LastUpdate { get; private set; }
 
-    public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, RedisService redis, DiscordHookService discord)
+    public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, FallibleService<RedisService> redis, DiscordHookService discord)
     {
         _logger = logger;
         _github = github;
@@ -100,8 +100,15 @@ public class PluginDataService
                 manifest.LastUpdate = lastUpdate;
                 manifest.Changelog = changelog;
 
-                manifest.DownloadCount = await _redis.GetCount(manifest.InternalName);
-
+                if (!_redis.HasFailed)
+                {
+                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
+                    if (dlCount.HasValue)
+                    {
+                        manifest.DownloadCount = dlCount.Value;
+                    }
+                }
+                
                 var noProxyManifest = new PluginManifest(manifest);
 
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
@@ -131,7 +138,14 @@ public class PluginDataService
                 manifest.LastUpdate = lastUpdate;
                 manifest.Changelog = changelog;
 
-                manifest.DownloadCount = await _redis.GetCount(manifest.InternalName);
+                if (!_redis.HasFailed)
+                {
+                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
+                    if (dlCount.HasValue)
+                    {
+                        manifest.DownloadCount = dlCount.Value;
+                    }
+                }
 
                 var noProxyManifest = new PluginManifest(manifest);
 
@@ -208,7 +222,14 @@ public class PluginDataService
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, true);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
                 
-                manifest.DownloadCount = await _redis.GetCount(manifest.InternalName);
+                if (!_redis.HasFailed)
+                {
+                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
+                    if (dlCount.HasValue)
+                    {
+                        manifest.DownloadCount = dlCount.Value;
+                    }
+                }
 
                 manifest.IsDip17Plugin = true;
                 manifest.Dip17Channel = channelName;
@@ -254,7 +275,10 @@ public class PluginDataService
 
     private async Task<(long LastUpdate, string? Changelog)> GetPluginInfo(PluginManifest manifest, RepositoryContent content, string repoOwner, string repoName)
     {
-        var cachedInfo = await _redis.GetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString());
+        if (_redis.HasFailed)
+            return (0, null);
+        
+        var cachedInfo = await _redis.Get().GetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString());
         if (cachedInfo != null)
             return (cachedInfo.LastUpdate, cachedInfo.PrBody);
 
@@ -267,7 +291,7 @@ public class PluginDataService
             if (desc != null && desc.Contains("nofranz"))
                 desc = null;
 
-            await _redis.SetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString(),
+            await _redis.Get().SetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString(),
                 new RedisService.PluginInfo
                 {
                     LastUpdate = lastUpdate,
@@ -277,7 +301,7 @@ public class PluginDataService
             return (lastUpdate, desc);
         }
 
-        await _redis.SetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString(),
+        await _redis.Get().SetCachedPlugin(manifest.InternalName, manifest.AssemblyVersion.ToString(),
             new RedisService.PluginInfo
             {
                 LastUpdate = lastUpdate,
