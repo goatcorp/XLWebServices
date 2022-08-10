@@ -78,10 +78,10 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<Dictionary<string, long>> DownloadCounts()
+    public async Task<IActionResult> DownloadCounts()
     {
         if (this.pluginData.HasFailed || this.redis.HasFailed)
-            throw new Exception("Precondition failed");
+            return StatusCode(500, "Precondition failed");
         
         var counts = new Dictionary<string, long>();
         foreach (var plugin in this.pluginData.Get()!.PluginMaster!)
@@ -89,7 +89,7 @@ public class PluginController : ControllerBase
             counts.Add(plugin.InternalName, await this.redis.Get()!.GetCount(plugin.InternalName));
         }
 
-        return counts;
+        return new JsonResult(counts);
     }
 
     [HttpGet]
@@ -153,28 +153,28 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<PluginMeta> Meta()
+    public async Task<IActionResult> Meta()
     {
         if (this.pluginData.HasFailed || this.redis.HasFailed)
-            throw new Exception("Precondition failed");
+            return StatusCode(500, "Precondition failed");
         
-        return new PluginMeta
+        return new JsonResult(new PluginMeta
         {
             NumPlugins = this.pluginData.Get()!.PluginMaster!.Count,
             LastUpdate = this.pluginData.Get()!.LastUpdate,
             CumulativeDownloads = await this.redis.Get()!.GetCount(RedisCumulativeKey),
             Sha = this.pluginData.Get()!.RepoSha,
             Dip17Sha = this.pluginData.Get()!.RepoShaDip17,
-        };
+        });
     }
 
     [HttpGet]
-    public IReadOnlyList<DalamudReleaseDataService.DalamudChangelog> CoreChangelog()
+    public IActionResult CoreChangelog()
     {
         if (this.releaseData.HasFailed)
-            throw new Exception("Precondition failed");
+            return StatusCode(500, "Precondition failed");
         
-        return this.releaseData.Get()!.DalamudChangelogs;
+        return new JsonResult(this.releaseData.Get()!.DalamudChangelogs);
     }
 
     public class PluginMeta

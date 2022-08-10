@@ -122,18 +122,18 @@ public class GitHubProxyController: ControllerBase
     }
 
     [HttpGet]
-    public async Task<ProxyMeta> Meta()
+    public async Task<IActionResult> Meta()
     {
         if (_launcherReleaseData.HasFailed || _redis.HasFailed)
-            throw new Exception("Precondition failed");
+            return StatusCode(500, "Precondition failed");
         
-        return new ProxyMeta
+        return new JsonResult(new ProxyMeta
         {
             TotalDownloads = await _redis.Get()!.GetCount(RedisKeyStarts),
             UniqueInstalls = await _redis.Get()!.GetCount(RedisKeyUniqueInstalls),
             ReleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.Get()!.CachedRelease, this._launcherReleaseData.Get()!.ReleaseChangelog),
             PrereleaseVersion = ProxyMeta.VersionMeta.From(this._launcherReleaseData.Get()!.CachedPrerelease, this._launcherReleaseData.Get()!.PrereleaseChangelog),
-        };
+        });
     }
 
     public class ProxyMeta
