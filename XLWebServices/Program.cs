@@ -26,6 +26,7 @@ builder.Services.AddSwaggerGen();
 builder.WebHost.UseSentry(sentryBuilder =>
 {
     sentryBuilder.SendDefaultPii = false;
+    sentryBuilder.Release = Util.GetGitHash();
 });
 
 var app = builder.Build();
