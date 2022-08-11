@@ -245,10 +245,16 @@ public class PluginDataService
                     // TODO: Changelog for testing versions?
                     
                     var stableVersion = pluginMaster.FirstOrDefault(x => x.InternalName == pluginName);
+                    var stableDip17Version = pluginMaster.FirstOrDefault(x => x.InternalName == pluginName);
+                    if (stableDip17Version != null)
+                        stableVersion = stableDip17Version;
+                    
                     if (stableVersion != null)
                     {
                         stableVersion.TestingAssemblyVersion = manifest.AssemblyVersion;
                         stableVersion.IsTestingExclusive = false;
+                        stableVersion.IsDip17Plugin = true;
+                        stableVersion.Dip17Channel = channelName;
                     }
                     else
                     {

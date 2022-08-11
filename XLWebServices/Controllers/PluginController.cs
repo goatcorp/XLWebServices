@@ -93,10 +93,21 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult PluginMaster([FromQuery] bool proxy = true)
+    public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery(Name = "track")] string? dip17Track = null)
     {
         if (this.pluginData.HasFailed)
             return StatusCode(500, "Precondition failed");
+
+        if (!string.IsNullOrEmpty(dip17Track))
+        {
+            if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
+                return NotFound("Not found track");
+            
+            return Content(JsonSerializer.Serialize(trackMaster, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+            }), "application/json");
+        }
         
         //if (proxy && UseFileProxy)
         //{
@@ -115,14 +126,24 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet("{internalName}")]
-    public IActionResult Plugin(string internalName)
+    public IActionResult Plugin(string internalName, [FromQuery(Name = "track")] string? dip17Track = null)
     {
         if (this.pluginData.HasFailed)
             return StatusCode(500, "Precondition failed");
+
+        var master = this.pluginData.Get()!.PluginMaster;
         
-        var plugin = this.pluginData.Get()!.PluginMaster!.FirstOrDefault(x => x.InternalName == internalName);
+        if (!string.IsNullOrEmpty(dip17Track))
+        {
+            if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
+                return NotFound("Not found track");
+
+            master = trackMaster;
+        }
+        
+        var plugin = master!.FirstOrDefault(x => x.InternalName == internalName);
         if (plugin == null)
-            return BadRequest("Invalid plugin");
+            return NotFound("Not found plugin");
 
         return Content(JsonSerializer.Serialize(plugin, new JsonSerializerOptions
         {
