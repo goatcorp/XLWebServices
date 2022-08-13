@@ -216,7 +216,7 @@ public class PluginDataService
                 manifest.IsHide = isHide;
                 
                 manifest.Changelog =
-                    pluginState.Changelogs?.FirstOrDefault(x => x.Key == manifest.AssemblyVersion.ToString()).Value.Changelog;
+                    pluginState.Changelogs?.FirstOrDefault(x => x.Key == manifest.AssemblyVersion.ToString()).Value?.Changelog;
 
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, true);
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, true);
