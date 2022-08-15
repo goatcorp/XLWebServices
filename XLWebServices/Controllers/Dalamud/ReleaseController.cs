@@ -30,7 +30,7 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control")
     {
-        if (this.releaseCache.HasFailed)
+        if (this.releaseCache.HasFailed && this.releaseCache.Get()?.DalamudVersions == null)
             return StatusCode(500, "Precondition failed");
         
         if (string.IsNullOrEmpty(track))
@@ -76,7 +76,7 @@ public class ReleaseController : ControllerBase
     [HttpGet("{kind}/{version}")]
     public async Task<IActionResult> Runtime(string version, string kind)
     {
-        if (this.releaseCache.HasFailed)
+        if (this.releaseCache.HasFailed && this.releaseCache.Get()?.DalamudVersions == null)
             return StatusCode(500, "Precondition failed");
         
         if (this.releaseCache.Get()!.DalamudVersions.All(x => x.Value.RuntimeVersion != version) && version != "5.0.6")

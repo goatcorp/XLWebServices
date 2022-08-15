@@ -36,8 +36,8 @@ public class GitHubProxyController: ControllerBase
     [HttpGet("{track:alpha}/{file}")]
     public async Task<IActionResult> Update(string file, string track, string? localVersion = null)
     {
-        if (_launcherReleaseData.HasFailed)
-            return StatusCode(502);
+        if (_launcherReleaseData.HasFailed && this._launcherReleaseData.Get()?.CachedReleasesList == null)
+            return StatusCode(500, "Precondition failed");
         
         if (!string.IsNullOrEmpty(localVersion))
         {

@@ -36,7 +36,7 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false, [FromQuery(Name = "isDip17")] bool isDip17 = false)
     {
-        if (this.pluginData.HasFailed)
+        if (this.pluginData.HasFailed&& this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
         
         var masterList = this.pluginData.Get()!.PluginMaster;
@@ -95,7 +95,7 @@ public class PluginController : ControllerBase
     [HttpGet]
     public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery(Name = "track")] string? dip17Track = null)
     {
-        if (this.pluginData.HasFailed)
+        if (this.pluginData.HasFailed && this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
 
         if (!string.IsNullOrEmpty(dip17Track))
