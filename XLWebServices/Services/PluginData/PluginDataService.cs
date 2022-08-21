@@ -217,7 +217,8 @@ public class PluginDataService
                 
                 manifest.Changelog =
                     pluginState.Changelogs?.FirstOrDefault(x => x.Key == manifest.AssemblyVersion.ToString()).Value?.Changelog;
-
+                manifest.LastUpdate = ((DateTimeOffset)pluginState.TimeBuilt).ToUnixTimeSeconds();
+                
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, true);
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, true);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
