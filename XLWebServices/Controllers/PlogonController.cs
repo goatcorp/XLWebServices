@@ -7,12 +7,12 @@ namespace XLWebServices.Controllers;
 [Route("/Plogon/[action]")]
 public class PlogonController : ControllerBase
 {
-    private readonly RedisService _redis;
+    private readonly FallibleService<RedisService> _redis;
 
     private const string MsgIdsKey = "PLOGONSTREAM_MSGS-";
     private const string ChangelogKey = "PLOGONSTREAM_CHANGELOG-";
 
-    public PlogonController(RedisService redis)
+    public PlogonController(FallibleService<RedisService> redis)
     {
         _redis = redis;
     }
@@ -26,7 +26,7 @@ public class PlogonController : ControllerBase
         if (!CheckAuth(key))
             return Unauthorized();
 
-        await _redis.Database.ListRightPushAsync(MsgIdsKey + prNumber, messageId);
+        await _redis.Get()!.Database.ListRightPushAsync(MsgIdsKey + prNumber, messageId);
         
         return Ok();
     }
@@ -34,7 +34,7 @@ public class PlogonController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetMessageIds([FromQuery] string prNumber)
     {
-        var ids = await _redis.Database.ListRangeAsync(MsgIdsKey + prNumber);
+        var ids = await _redis.Get()!.Database.ListRangeAsync(MsgIdsKey + prNumber);
         if (ids == null)
             return NotFound();
         
@@ -61,14 +61,14 @@ public class PlogonController : ControllerBase
         if (body == null || body.Text == null)
             return BadRequest("no body");
 
-        await _redis.Database.StringSetAsync(ChangelogKey + $"{internalName}-{version}", body.Text);
+        await _redis.Get()!.Database.StringSetAsync(ChangelogKey + $"{internalName}-{version}", body.Text);
         
         return Ok();
     }
 
     public async Task<IActionResult> GetVersionChangelog([FromQuery] string internalName, [FromQuery] string version)
     {
-        var changelog = await _redis.Database.StringGetAsync(ChangelogKey + $"{internalName}-{version}");
+        var changelog = await _redis.Get()!.Database.StringGetAsync(ChangelogKey + $"{internalName}-{version}");
         if (!changelog.HasValue)
             return NotFound();
 

@@ -41,7 +41,9 @@ public class FallibleService<T> where T : class
     {
         try
         {
-            return await predicate(_instance!);
+            var result = await predicate(_instance!);
+            HasFailed = false;
+            return result;
         }
         catch (Exception ex)
         {
@@ -50,8 +52,6 @@ public class FallibleService<T> where T : class
 
             return default(TRet);
         }
-
-        HasFailed = false;
     }
 
     public T? Get()
