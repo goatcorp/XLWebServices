@@ -43,29 +43,22 @@ public class PlogonController : ControllerBase
         return new JsonResult(idList);
     }
 
-    private class ChangelogBody
-    {
-        public string Text { get; set; }
-    }
-
     [HttpPost]
-    public async Task<IActionResult> RegisterVersionChangelog(
+    public async Task<IActionResult> RegisterVersionPrNumber(
         [FromQuery] string key,
         [FromQuery] string internalName,
-        [FromQuery] string version)
+        [FromQuery] string version,
+        [FromQuery] string prNumber)
     {
         if (!CheckAuth(key))
             return Unauthorized();
-
-        var body = await Request.ReadFromJsonAsync<ChangelogBody>();
-        if (body == null || body.Text == null)
-            return BadRequest("no body");
-
-        await _redis.Get()!.Database.StringSetAsync(ChangelogKey + $"{internalName}-{version}", body.Text);
+        
+        await _redis.Get()!.Database.StringSetAsync(ChangelogKey + $"{internalName}-{version}", prNumber);
         
         return Ok();
     }
 
+    [HttpGet]
     public async Task<IActionResult> GetVersionChangelog([FromQuery] string internalName, [FromQuery] string version)
     {
         var changelog = await _redis.Get()!.Database.StringGetAsync(ChangelogKey + $"{internalName}-{version}");
