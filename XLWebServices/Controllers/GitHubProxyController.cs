@@ -21,15 +21,24 @@ public class GitHubProxyController: ControllerBase
 
     private static readonly Regex SemverRegex = new(@"^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$", RegexOptions.Compiled);
 
+    private static bool _isCanaryEnabled = false;
+    
     const string RedisKeyUniqueInstalls = "XLUniqueInstalls";
     const string RedisKeyStarts = "XLStarts";
 
+    private static string[] CanaryAirports = new[]
+    {
+        "lax",
+        "cdg",
+        "sin",
+    };
+    
     public GitHubProxyController(ILogger<GitHubProxyController> logger, IConfiguration configuration, FallibleService<RedisService> redis, FallibleService<LauncherReleaseDataService> launcherReleaseData, FileCacheService cache)
     {
         _logger = logger;
         _configuration = configuration;
         _redis = redis;
-        this._launcherReleaseData = launcherReleaseData;
+        _launcherReleaseData = launcherReleaseData;
         _cache = cache;
     }
 
@@ -38,6 +47,19 @@ public class GitHubProxyController: ControllerBase
     {
         if (_launcherReleaseData.HasFailed && this._launcherReleaseData.Get()?.CachedReleasesList == null)
             return StatusCode(500, "Precondition failed");
+
+        if (_isCanaryEnabled)
+        {
+            if (Request.Headers.TryGetValue("cf-ray", out var ray))
+            {
+                var rayText = ray.FirstOrDefault();
+                if (rayText != null &&
+                    CanaryAirports.Any(x => rayText.ToLower().EndsWith(x)))
+                {
+                    track = "Prerelease";
+                }
+            }
+        }
         
         if (!string.IsNullOrEmpty(localVersion))
         {
@@ -119,6 +141,17 @@ public class GitHubProxyController: ControllerBase
         await this._launcherReleaseData.RunFallibleAsync(s => s.ClearCache());
 
         return Ok(_launcherReleaseData.HasFailed);
+    }
+    
+    [HttpPost]
+    public async Task<IActionResult> SetUseCanary([FromQuery] string key, [FromQuery] bool use)
+    {
+        if (key != _configuration["CacheClearKey"])
+            return BadRequest();
+
+        _isCanaryEnabled = use;
+        
+        return Ok(_isCanaryEnabled);
     }
 
     [HttpGet]
