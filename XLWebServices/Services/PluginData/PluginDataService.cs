@@ -181,8 +181,8 @@ public class PluginDataService
 
     public async Task<(Dictionary<string, List<PluginManifest>> Manifests, string Sha)> ClearCacheD17(List<PluginManifest> pluginMaster)
     {
-        var repoOwner = _configuration["GitHub:PluginRepositoryD17:Owner"];
-        var repoName = _configuration["GitHub:PluginRepositoryD17:Name"];
+        var repoOwner = _configuration["GitHub:PluginDistD17:Owner"];
+        var repoName = _configuration["GitHub:PluginDistD17:Name"];
         var apiLevel = _configuration["ApiLevel"];
 
         var commit = await _github.Client.Repository.Commit.Get(repoOwner, repoName, "main");
