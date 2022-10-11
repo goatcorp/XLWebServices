@@ -34,6 +34,7 @@ public class PacRepo : ControllerBase
         
         var repoOwner = this.config["GitHub:PluginRepositoryD17:Owner"];
         var repoName = this.config["GitHub:PluginRepositoryD17:Name"];
+        var apiLevel = int.Parse(this.config["ApiLevel"]);
 
         var prs = await this.github.Client.Repository.PullRequest.GetAllForRepository(repoOwner, repoName, new PullRequestRequest()
         {
@@ -65,6 +66,8 @@ public class PacRepo : ControllerBase
             mf.DownloadLinkInstall = mf.DownloadLinkTesting =
                 mf.DownloadLinkUpdate =
                     $"{this.config["HostedUrl"]}/Dalamud/_Private/PacRepo/DownloadPlugin/{pr.Number}?nonce={myNonce}";
+            mf.DalamudApiLevel = apiLevel;
+            mf.IsDip17Plugin = false;
             
             manifests.Add(mf);
         }
