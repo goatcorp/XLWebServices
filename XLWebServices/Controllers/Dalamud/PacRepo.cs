@@ -16,7 +16,7 @@ public class PacRepo : ControllerBase
     private readonly GitHubService github;
     private readonly IConfiguration config;
 
-    private const string Key = "nuts";
+    private const string Key = "OukK9b98M3fAWHgm6SPOrg0";
 
     private static readonly List<(DateTime When, string Nonce)> Nonces = new();
 
