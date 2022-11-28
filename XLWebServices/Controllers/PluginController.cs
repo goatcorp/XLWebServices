@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Prometheus;
 using XLWebServices.Services;
@@ -7,6 +8,7 @@ using XLWebServices.Services.PluginData;
 namespace XLWebServices.Controllers;
 
 [ApiController]
+[EnableCors("GithubAccess")]
 [Route("[controller]/[action]")]
 public class PluginController : ControllerBase
 {
@@ -76,7 +78,7 @@ public class PluginController : ControllerBase
             return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
         }
     }
-
+    
     [HttpGet]
     public async Task<IActionResult> DownloadCounts()
     {
@@ -151,6 +153,7 @@ public class PluginController : ControllerBase
         }), "application/json");
     }
 
+    [DisableCors]
     [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
@@ -163,6 +166,7 @@ public class PluginController : ControllerBase
         return Ok(this.pluginData.HasFailed);
     }
 
+    [DisableCors]
     [HttpPost]
     public async Task<IActionResult> SetUseProxy([FromQuery] string key, [FromQuery] bool useProxy)
     {

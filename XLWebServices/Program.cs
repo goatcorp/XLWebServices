@@ -23,6 +23,17 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("GithubAccess",
+        policy =>
+        {
+            policy.WithOrigins("https://goatcorp.github.io", "https://tommadness.github.io")
+                .WithMethods("GET")
+                .AllowAnyHeader();
+        });
+});
+
 builder.WebHost.UseSentry(sentryBuilder =>
 {
     sentryBuilder.SendDefaultPii = false;
@@ -48,6 +59,8 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 
 app.UseRouting();
+app.UseCors();
+
 app.UseSentryTracing();
 
 app.UseResponseCaching();
