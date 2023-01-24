@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Prometheus;
 using XLWebServices.Services;
@@ -5,6 +6,7 @@ using XLWebServices.Services;
 namespace XLWebServices.Controllers;
 
 [ApiController]
+[EnableCors("GithubAccess")]
 [Route("Dalamud/Release/[action]")]
 public class ReleaseController : ControllerBase
 {
