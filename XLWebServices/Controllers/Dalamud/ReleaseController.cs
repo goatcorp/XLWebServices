@@ -41,7 +41,7 @@ public class ReleaseController : ControllerBase
         if (string.IsNullOrEmpty(appId))
             appId = "goat";
 
-        if (appId != "goat" && appId != "xom")
+        if (appId != "goat" && appId != "xom" && appId != "helpy")
             return BadRequest("Invalid appId");
 
         switch (track)
