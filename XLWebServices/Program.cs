@@ -59,6 +59,7 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 });
 
 app.UseRouting();
+app.UseHttpMetrics();
 app.UseCors();
 
 app.UseSentryTracing();
