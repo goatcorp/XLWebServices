@@ -15,9 +15,7 @@ public class PacRepo : ControllerBase
 {
     private readonly GitHubService github;
     private readonly IConfiguration config;
-
-    private const string Key = "OukK9b98M3fAWHgm6SPOrg0";
-
+    
     private static readonly List<(DateTime When, string Nonce)> Nonces = new();
 
     public PacRepo(GitHubService github, IConfiguration config)
@@ -29,7 +27,7 @@ public class PacRepo : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetRepo([FromQuery] string key)
     {
-        if (key != Key)
+        if (key != config["PacRepoKey"])
             return Unauthorized("poop");
         
         var repoOwner = this.config["GitHub:PluginRepositoryD17:Owner"];

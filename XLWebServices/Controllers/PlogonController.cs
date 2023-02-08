@@ -8,13 +8,15 @@ namespace XLWebServices.Controllers;
 public class PlogonController : ControllerBase
 {
     private readonly FallibleService<RedisService> _redis;
+    private readonly IConfiguration _config;
 
     private const string MsgIdsKey = "PLOGONSTREAM_MSGS-";
     private const string ChangelogKey = "PLOGONSTREAM_CHANGELOG-";
 
-    public PlogonController(FallibleService<RedisService> redis)
+    public PlogonController(FallibleService<RedisService> redis, IConfiguration config)
     {
         _redis = redis;
+        _config = config;
     }
     
     [HttpPost]
@@ -70,6 +72,6 @@ public class PlogonController : ControllerBase
 
     private bool CheckAuth(string key)
     {
-        return key == "pWIFpTsd18vkW4gCJje7h";
+        return key == _config["PlogonApiKey"];
     }
 }
