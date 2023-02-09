@@ -107,7 +107,7 @@ public class PluginController : ControllerBase
             
             return Content(JsonSerializer.Serialize(trackMaster, new JsonSerializerOptions
             {
-                WriteIndented = true,
+                //WriteIndented = true,
             }), "application/json");
         }
         
@@ -115,7 +115,7 @@ public class PluginController : ControllerBase
         //{
             return Content(JsonSerializer.Serialize(this.pluginData.Get()!.PluginMaster, new JsonSerializerOptions
             {
-                WriteIndented = true,
+                //WriteIndented = true,
             }), "application/json");
         //}
 
@@ -149,7 +149,7 @@ public class PluginController : ControllerBase
 
         return Content(JsonSerializer.Serialize(plugin, new JsonSerializerOptions
         {
-            WriteIndented = true,
+            //WriteIndented = true,
         }), "application/json");
     }
 
