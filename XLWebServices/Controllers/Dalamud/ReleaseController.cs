@@ -72,7 +72,19 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult Meta()
     {
+        if (this.releaseCache.HasFailed && this.releaseCache.Get()?.DalamudVersions == null)
+            return StatusCode(500, "Precondition failed");
+        
         return new JsonResult(this.releaseCache.Get()!.DalamudVersions);
+    }
+    
+    [HttpGet]
+    public IActionResult Changelog()
+    {
+        if (this.releaseCache.HasFailed)
+            return StatusCode(500, "Precondition failed");
+        
+        return new JsonResult(this.releaseCache.Get()!.DalamudChangelogs);
     }
 
     [HttpGet("{kind}/{version}")]

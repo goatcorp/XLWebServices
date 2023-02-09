@@ -193,15 +193,6 @@ public class PluginController : ControllerBase
         });
     }
 
-    [HttpGet]
-    public IActionResult CoreChangelog()
-    {
-        if (this.releaseData.HasFailed)
-            return StatusCode(500, "Precondition failed");
-        
-        return new JsonResult(this.releaseData.Get()!.DalamudChangelogs);
-    }
-
     public class PluginMeta
     {
         public int NumPlugins { get; init; }
