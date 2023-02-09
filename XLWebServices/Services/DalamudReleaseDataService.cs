@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Octokit;
 
 namespace XLWebServices.Services;
@@ -55,8 +56,21 @@ public class DalamudReleaseDataService
             throw new Exception($"Repo {repoName} not found");
 
         var releasesDict = new Dictionary<string, DalamudVersion>();
-        
-        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, sha);
+
+        string? currentGameVer = null;
+        try
+        {
+            currentGameVer = await GetCurrentGameVer();
+            
+            if (currentGameVer == null)
+                logger.LogError("Thaliak returned null for gamever");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Couldn't fetch gamever from Thaliak");
+        }
+
+        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, sha, currentGameVer);
         release.Changelog = DalamudChangelogs.FirstOrDefault(x => x.Version == release.AssemblyVersion);
 
         releasesDict.Add("release", release);
@@ -66,7 +80,7 @@ public class DalamudReleaseDataService
             if (content.Type != ContentType.Dir || content.Name == ".github" || content.Name == "runtimehashes")
                 continue;
 
-            var tempRelease = await GetDalamudRelease(content.Name, repoOwner, repoName, sha);
+            var tempRelease = await GetDalamudRelease(content.Name, repoOwner, repoName, sha, currentGameVer);
             
 
             if (content.Name == "canary")
@@ -104,7 +118,7 @@ public class DalamudReleaseDataService
         this.logger.LogInformation($"Correctly refreshed Dalamud releases");
     }
 
-    private async Task<DalamudVersion> GetDalamudRelease(string trackName, string repoOwner, string repoName, string sha)
+    private async Task<DalamudVersion> GetDalamudRelease(string trackName, string repoOwner, string repoName, string sha, string? currentGameVer)
     {
         if (!string.IsNullOrEmpty(trackName))
             trackName = $"{trackName}/";
@@ -125,6 +139,9 @@ public class DalamudReleaseDataService
         releaseJson.Track = string.IsNullOrEmpty(trackName) ? "release" : trackName;
         releaseJson.DownloadUrl = $"{this.config["HostedUrl"]}/File/Get/{releaseCache.Id}";
 
+        if (currentGameVer != null)
+            releaseJson.IsApplicableForCurrentGameVer = releaseJson.SupportedGameVer == currentGameVer;
+        
         return releaseJson;
     }
 
@@ -196,6 +213,53 @@ public class DalamudReleaseDataService
 
         this.logger.LogInformation("Got {Count} Dalamud changelogs", this.DalamudChangelogs.Count);
     }
+    
+    private class ThaliakGqlModel
+    {
+        public class Data
+        {
+            [JsonPropertyName("repository")]
+            public Repository? Repository { get; set; }
+        }
+
+        public class LatestVersion
+        {
+            [JsonPropertyName("versionString")]
+            public string? VersionString { get; set; }
+        }
+
+        public class Repository
+        {
+            [JsonPropertyName("latestVersion")]
+            public LatestVersion? LatestVersion { get; set; }
+        }
+
+        public class Root
+        {
+            [JsonPropertyName("data")]
+            public Data? Data { get; set; }
+        }
+    }
+
+    private async Task<string?> GetCurrentGameVer()
+    {
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("XLWebServices", "1.0.0"));
+
+
+        var thaliakGqlMessage =
+            new HttpRequestMessage(HttpMethod.Post, "https://thaliak.xiv.dev/graphql/2022-08-14");
+        thaliakGqlMessage.Content =
+            new StringContent(
+                "{\"query\":\"query GetLatestGameVersion {  repository(slug:\\\"4e9a232b\\\") {    latestVersion {      versionString    }  }}\"}",
+                Encoding.UTF8, "application/json");
+
+        var thaliakResponse = await client.SendAsync(thaliakGqlMessage);
+        thaliakResponse.EnsureSuccessStatusCode();
+        var thaliakJson = await thaliakResponse.Content.ReadFromJsonAsync<ThaliakGqlModel.Root>();
+
+        return thaliakJson?.Data?.Repository?.LatestVersion?.VersionString;
+    }
 
     public class DalamudVersion
     {
@@ -210,6 +274,9 @@ public class DalamudReleaseDataService
         public bool RuntimeRequired { get; set; }
 
         public string SupportedGameVer { get; set; }
+        
+        // null means unknown
+        public bool? IsApplicableForCurrentGameVer { get; set; }
 
         public DalamudChangelog? Changelog { get; set; }
 
