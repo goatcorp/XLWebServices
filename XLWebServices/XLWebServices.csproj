@@ -18,9 +18,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Reference Include="Octokit">
-        <HintPath>Octokit.dll</HintPath>
-      </Reference>
+      <ProjectReference Include="..\lib\octokit\Octokit\Octokit.csproj" />
     </ItemGroup>
 
     <Target Name="GetGitHash" BeforeTargets="WriteGitHash" Condition="'$(BuildHash)' == ''">

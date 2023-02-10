@@ -320,7 +320,7 @@ public class PluginDataService
 
     private async Task<string?> GetPrDescription(GitHubCommit commit, string repoOwner, string repoName)
     {
-        var pulls = await _github.Client.Repository.Commit.Pulls(repoOwner, repoName, commit.Sha);
+        var pulls = await _github.Client.Repository.Commit.PullRequests(repoOwner, repoName, commit.Sha);
         return pulls.FirstOrDefault(x => x.Merged)?.Body;
     }
 
