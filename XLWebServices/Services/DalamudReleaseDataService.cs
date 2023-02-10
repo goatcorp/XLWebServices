@@ -100,19 +100,19 @@ public class DalamudReleaseDataService
         }
         
         var discordMessage =
-            $"Release: {release.AssemblyVersion}({release.Changelog?.Changes.Count} Changes)\n";
+            $"{(release.IsApplicableForCurrentGameVer.GetValueOrDefault(true) ? "✔️" : "❌")} Release: {release.AssemblyVersion}({release.Changelog?.Changes.Count} Changes)\n";
 
         foreach (var version in releasesDict)
         {
             if (version.Key == "release")
                 continue;
 
-            discordMessage += $"{version.Key}: {version.Value.AssemblyVersion}\n";
+            discordMessage += $"{(version.Value.IsApplicableForCurrentGameVer.GetValueOrDefault(true) ? "✔️" : "❌")} {version.Key}: {version.Value.AssemblyVersion}\n";
         }
 
         this.DalamudVersions = releasesDict;
 
-        await this.discord.SendSuccess(discordMessage,
+        await this.discord.AdminSendSuccess(discordMessage,
             "Dalamud releases updated!");
 
         this.logger.LogInformation($"Correctly refreshed Dalamud releases");

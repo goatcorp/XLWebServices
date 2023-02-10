@@ -2,12 +2,26 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Prometheus;
 using XLWebServices;
 using XLWebServices.Services;
+using XLWebServices.Services.JobQueue;
 using XLWebServices.Services.PluginData;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddSingleton<ConfigMasterService>();
 builder.Services.AddSingleton<FallibleService<RedisService>>();
+
+builder.Services.AddHostedService<QueuedHostedService>();
+builder.Services.AddSingleton<IBackgroundTaskQueue>(ctx => 
+{
+    if (!int.TryParse(ctx.GetRequiredService<IConfiguration>()["QueueCapacity"], out var queueCapacity))
+    {
+        queueCapacity = 100;
+    }
+
+    return new DefaultBackgroundTaskQueue(queueCapacity);
+});
+
 builder.Services.AddSingleton<DiscordHookService>();
 builder.Services.AddSingleton<GitHubService>();
 builder.Services.AddSingleton<FileCacheService>();
@@ -82,7 +96,7 @@ var discord = app.Services.GetRequiredService<DiscordHookService>();
 
 var redis = app.Services.GetRequiredService<FallibleService<RedisService>>();
 if (redis.HasFailed)
-    await discord.SendError("Couldn't connect to redis", "Redis");
+    await discord.AdminSendError("Couldn't connect to redis", "Redis");
 
 app.Services.GetRequiredService<GitHubService>();
 

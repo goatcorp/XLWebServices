@@ -6,26 +6,67 @@ namespace XLWebServices.Services;
 public class DiscordHookService
 {
     private readonly IConfiguration _configuration;
+    private readonly ILogger<DiscordHookService> _logger;
 
-    public DiscordWebhookClient Client { get; private set; }
+    private DiscordWebhookClient? _adminClient;
+    private DiscordWebhookClient? _releasesClient;
+    private DiscordWebhookClient? _releasesTestingClient;
 
-    private string FooterText => $"XLWebServices {Util.GetGitHash()}";
+    private string AdminFooterText => $"XLWebServices {Util.GetGitHash()}";
 
-    public DiscordHookService(IConfiguration configuration)
+    public DiscordHookService(IConfiguration configuration, ILogger<DiscordHookService> logger)
     {
         _configuration = configuration;
-        this.Client = new DiscordWebhookClient(this._configuration["DiscordWebhook"]);
+        _logger = logger;
+
+        _adminClient = SetupClient(_configuration["DiscordWebHooks:Admin"]);
+        _releasesClient = SetupClient(_configuration["DiscordWebHooks:Releases"]);
+        _releasesTestingClient = SetupClient(_configuration["DiscordWebHooks:ReleasesTesting"]);
     }
 
-    public async Task SendSuccess(string message, string title)
+    private static DateTime GetPacificStandardTime()
     {
-        var embed = new EmbedBuilder().WithColor(Color.Green).WithTitle(title).WithFooter(FooterText).WithDescription(message).Build();
-        await this.Client.SendMessageAsync(embeds: new[] { embed });
+        var utc = DateTime.UtcNow;
+        var pacificZone = TimeZoneInfo.FindSystemTimeZoneById("America/Los_Angeles");
+        var pacificTime = TimeZoneInfo.ConvertTimeFromUtc(utc, pacificZone);
+        return pacificTime;
+    }
+    
+    public async Task SendRelease(Embed embed, bool isTesting)
+    {
+        var client = isTesting ? _releasesTestingClient : _releasesClient;
+        if (client == null)
+            return;
+        
+        var time = GetPacificStandardTime();
+        var username = "Plo";
+        var avatarUrl = "https://goatcorp.github.io/icons/plo.png";
+        if (time.Hour is > 20 or < 7)
+        {
+            username = "Gon";
+            avatarUrl = "https://goatcorp.github.io/icons/gon.png";
+        }
+        
+        await client.SendMessageAsync(embeds: new[] { embed }, username: username, avatarUrl: avatarUrl);
+    }
+    
+    private DiscordWebhookClient? SetupClient(string? url) => string.IsNullOrEmpty(url) ? null : new DiscordWebhookClient(url);
+
+    public async Task AdminSendSuccess(string message, string title)
+    {
+        if (_adminClient == null)
+            return;
+        
+        var embed = new EmbedBuilder().WithColor(Color.Green).WithTitle(title).WithFooter(AdminFooterText).WithDescription(message).Build();
+        await _adminClient.SendMessageAsync(embeds: new[] { embed });
     }
 
-    public async Task SendError(string message, string title)
+    public async Task AdminSendError(string message, string title)
     {
-        var embed = new EmbedBuilder().WithColor(Color.Red).WithTitle(title).WithFooter(FooterText).WithDescription(message).Build();
-        await this.Client.SendMessageAsync(embeds: new[] { embed });
+        if (_adminClient == null)
+            return;
+        
+        var embed = new EmbedBuilder().WithColor(Color.Red).WithTitle(title).WithFooter(AdminFooterText).WithDescription(message).Build();
+        await _adminClient.SendMessageAsync(embeds: new[] { embed });
     }
 }

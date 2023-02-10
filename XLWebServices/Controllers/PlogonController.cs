@@ -1,5 +1,9 @@
+using System.Diagnostics;
+using Discord;
 using Microsoft.AspNetCore.Mvc;
 using XLWebServices.Services;
+using XLWebServices.Services.JobQueue;
+using XLWebServices.Services.PluginData;
 
 namespace XLWebServices.Controllers;
 
@@ -8,14 +12,35 @@ namespace XLWebServices.Controllers;
 public class PlogonController : ControllerBase
 {
     private readonly FallibleService<RedisService> _redis;
-    private readonly IConfiguration _config;
+    private readonly FallibleService<PluginDataService> _data;
+    private readonly GitHubService _github;
+    private readonly DiscordHookService _discord;
+    private readonly IBackgroundTaskQueue _queue;
+    private readonly ILogger<PlogonController> _logger;
+    private readonly ConfigMasterService _config;
 
     private const string MsgIdsKey = "PLOGONSTREAM_MSGS-";
     private const string ChangelogKey = "PLOGONSTREAM_CHANGELOG-";
+    
+    // we'll lose track if we ever restart during a commit, oops
+    private static List<StagedPluginInfo> _stagedPlugins = new();
+    private static bool _currentlyUnstaging = new();
 
-    public PlogonController(FallibleService<RedisService> redis, IConfiguration config)
+    public PlogonController(
+        FallibleService<RedisService> redis,
+        FallibleService<PluginDataService> data,
+        GitHubService github,
+        DiscordHookService discord,
+        IBackgroundTaskQueue queue,
+        ILogger<PlogonController> logger,
+        ConfigMasterService config)
     {
         _redis = redis;
+        _data = data;
+        _github = github;
+        _discord = discord;
+        _queue = queue;
+        _logger = logger;
         _config = config;
     }
     
@@ -45,6 +70,41 @@ public class PlogonController : ControllerBase
         return new JsonResult(idList);
     }
 
+    public class StagedPluginInfo
+    {
+        public string InternalName { get; set; }
+        public string Version { get; set; }
+        public string Dip17Track { get; set; }
+        public int PrNumber { get; set; }
+        public string? Changelog { get; set; }
+    }
+    
+    [HttpPost]
+    public async Task<IActionResult> CommitStagedPlugins()
+    {
+        if (!CheckAuthHeader())
+            return Unauthorized();
+        
+        var toCommit = _stagedPlugins.ToList();
+        _stagedPlugins.Clear();
+
+        await _queue.QueueBackgroundWorkItemAsync(token => BuildCommitWorkItemAsync(token, toCommit));
+
+        return Ok();
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> StagePluginBuild(
+        [FromBody] StagedPluginInfo payload)
+    {
+        if (!CheckAuthHeader())
+            return Unauthorized();
+        
+        _stagedPlugins.Add(payload);
+
+        return Ok();
+    }
+
     [HttpPost]
     public async Task<IActionResult> RegisterVersionPrNumber(
         [FromQuery] string key,
@@ -70,8 +130,78 @@ public class PlogonController : ControllerBase
         return Content(changelog.ToString());
     }
 
-    private bool CheckAuth(string key)
+    private async Task<(string Name, string Icon)?> GetPrAuthor(int prNum)
     {
-        return key == _config["PlogonApiKey"];
+        var pr = await _github.Client.Repository.PullRequest.Get(
+            _config.Dip17RepoOwner,
+            _config.Dip17RepoName,
+            prNum);
+
+        if (pr == null)
+            return null;
+
+        return (pr.User.Name, pr.User.AvatarUrl);
+    }
+
+    private string GetDip17IconUrl(string track, string internalName)
+    {
+        return
+            $"https://raw.githubusercontent.com/{_config.Dip17DistRepoOwner}/{_config.Dip17DistRepoName}/main/{track}/{internalName}/images/icon.png";
+    }
+    
+    private async ValueTask BuildCommitWorkItemAsync(CancellationToken token, List<StagedPluginInfo> staged)
+    {
+        _logger.LogInformation("Queued plogon commit is starting");
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+        var data = _data.Get()!;
+
+        try
+        {
+            await data.ClearCache();
+
+            foreach (var info in staged)
+            {
+                // TODO: keep track of all previous changelogs
+
+                var manifest = data.PluginMastersDip17[info.Dip17Track]
+                    .FirstOrDefault(x => x.InternalName == info.InternalName);
+
+                if (manifest == null)
+                {
+                    _logger.LogError("Couldn't find manifest for {InternalName}", info.InternalName);
+                    continue;
+                }
+
+                var isOtherRepo = info.Dip17Track != Dip17SystemDefine.MainTrack;
+
+                var author = await GetPrAuthor(info.PrNumber) ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
+                
+                var embed = new EmbedBuilder()
+                    .WithTitle($"{manifest.Name} (v{info.Version})")
+                    .WithAuthor(author.Name, author.Icon)
+                    .WithDescription(info.Changelog ?? "This dev didn't write a changelog")
+                    .WithThumbnailUrl(GetDip17IconUrl(info.Dip17Track, info.InternalName))
+                    .Build();
+
+                await _discord.SendRelease(embed, isOtherRepo);
+            }
+
+            _logger.LogInformation("Committed {NumPlogons} in {Secs}s", staged.Count, stopwatch.Elapsed.TotalSeconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not process plogon commit job");
+        }
+    }
+
+    private bool CheckAuthHeader()
+    {
+        return CheckAuth(Request.Headers["X-XL-Key"]);
+    }
+
+    private bool CheckAuth(string? key)
+    {
+        return !string.IsNullOrWhiteSpace(key) && key == _config.PlogonApiKey;
     }
 }

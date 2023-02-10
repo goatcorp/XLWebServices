@@ -77,7 +77,7 @@ public class LauncherReleaseDataService
             if (!releaseTagValid || !prereleaseTagValid)
             {
                 _logger.LogError("Invalid tag signature for release or prerelease");
-                await _discord.SendError("Invalid tag signature for release or prerelease!", "Tags not signed");
+                await _discord.AdminSendError("Invalid tag signature for release or prerelease!", "Tags not signed");
                 return;
             }
 
@@ -94,7 +94,7 @@ public class LauncherReleaseDataService
 
             if (prevRelease != null && prevRelease.TagName != CachedRelease.TagName || prevPrerelease != null && prevPrerelease.TagName != CachedPrerelease.TagName)
             {
-                await this._discord.SendSuccess($"Release: {CachedRelease.TagName}({CachedRelease.TargetCommitish})\nPrerelease: {CachedPrerelease.TagName}({CachedPrerelease.TargetCommitish})", "XIVLauncher releases updated!");
+                await this._discord.AdminSendSuccess($"Release: {CachedRelease.TagName}({CachedRelease.TargetCommitish})\nPrerelease: {CachedPrerelease.TagName}({CachedPrerelease.TargetCommitish})", "XIVLauncher releases updated!");
             }
 
             _logger.LogInformation("Correctly refreshed releases");
@@ -102,7 +102,7 @@ public class LauncherReleaseDataService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not refresh releases");
-            await _discord.SendError("Could not refresh releases!", "XIVLauncher releases");
+            await _discord.AdminSendError("Could not refresh releases!", "XIVLauncher releases");
             throw;
         }
     }

@@ -65,7 +65,6 @@ public class PluginDataService
                 await _github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, "testing/", sha);
 
             var pluginMaster = new List<PluginManifest>();
-            //var noProxyPluginMaster = new List<PluginManifest>();
 
             var d17 = await ClearCacheD17(pluginMaster);
             
@@ -109,17 +108,11 @@ public class PluginDataService
                     }
                 }
                 
-                var noProxyManifest = new PluginManifest(manifest);
-
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, false);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
-
-                //noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
-                //noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
-
+                
                 pluginMaster.Add(manifest);
-                //noProxyPluginMaster.Add(noProxyManifest);
             }
 
             foreach (var repositoryContent in testingDir)
@@ -147,34 +140,27 @@ public class PluginDataService
                     }
                 }
 
-                var noProxyManifest = new PluginManifest(manifest);
-
                 manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
                 manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, false);
                 manifest.DownloadLinkUpdate = string.Format(updateTemplate, manifest.InternalName, "plugins", apiLevel);
-
-                //noProxyManifest.DownloadLinkInstall = noProxyManifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
-                //noProxyManifest.DownloadLinkTesting = string.Format(updateTemplate, "testing", manifest.InternalName, apiLevel);
-
+                
                 pluginMaster.Add(manifest);
-                //noProxyPluginMaster.Add(noProxyManifest);
             }
 
             PluginMaster = pluginMaster;
             PluginMastersDip17 = d17.Manifests;
-            //PluginMasterNoProxy = noProxyPluginMaster;
             RepoSha = sha;
             RepoShaDip17 = d17.Sha;
             LastUpdate = DateTime.Now;
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
-            await this._discord.SendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}\nSHA(D17): {RepoShaDip17}",
+            await _discord.AdminSendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}\nSHA(D17): {RepoShaDip17}",
                 "PluginMaster updated");
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to refetch plugins");
-            await this._discord.SendError("Failed to reload plugins", "PluginMaster error");
+            await _discord.AdminSendError($"Failed to reload plugins ({e.Message})", "PluginMaster error");
             throw;
         }
     }
