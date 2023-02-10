@@ -157,11 +157,13 @@ public class PluginController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
+        /*
         if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
         await this.pluginData.RunFallibleAsync(s => s.ClearCache());
         this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
+        */
 
         return Ok(this.pluginData.HasFailed);
     }
