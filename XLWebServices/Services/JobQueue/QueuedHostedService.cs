@@ -13,9 +13,7 @@ public sealed class QueuedHostedService : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            $"{nameof(QueuedHostedService)} is running.{Environment.NewLine}" +
-            $"{Environment.NewLine}Tap W to add a work item to the " +
-            $"background queue.{Environment.NewLine}");
+            $"{nameof(QueuedHostedService)} is running.{Environment.NewLine}");
 
         return ProcessTaskQueueAsync(stoppingToken);
     }

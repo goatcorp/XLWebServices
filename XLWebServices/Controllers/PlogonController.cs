@@ -140,7 +140,7 @@ public class PlogonController : ControllerBase
         if (pr == null)
             return null;
 
-        return (pr.User.Name, pr.User.AvatarUrl);
+        return (pr.User.Name ?? pr.User.Login, pr.User.AvatarUrl);
     }
 
     private string GetDip17IconUrl(string track, string internalName)
