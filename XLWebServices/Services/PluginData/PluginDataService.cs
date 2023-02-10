@@ -183,7 +183,7 @@ public class PluginDataService
     {
         var repoOwner = _configuration["GitHub:PluginDistD17:Owner"];
         var repoName = _configuration["GitHub:PluginDistD17:Name"];
-        var apiLevel = _configuration["ApiLevel"];
+        var apiLevel = int.Parse(_configuration["ApiLevel"]!);
 
         var commit = await _github.Client.Repository.Commit.Get(repoOwner, repoName, "main");
         var sha = commit.Sha;
@@ -210,9 +210,15 @@ public class PluginDataService
                 if (manifest == null)
                     throw new Exception($"Could not fetch manifest for DIP17 plugin: {channelName}/{pluginName}");
 
+                if (manifest.DalamudApiLevel < apiLevel - 2)
+                {
+                    _logger.LogInformation("{PluginName} too old, api{Level}", manifest.InternalName, manifest.DalamudApiLevel);
+                    continue;
+                }
+                
                 var banned = bannedPlugins.LastOrDefault(x => x.Name == manifest.InternalName);
                 var isHide = banned != null && manifest.AssemblyVersion <= banned.AssemblyVersion ||
-                             manifest.DalamudApiLevel.ToString() != apiLevel;
+                             manifest.DalamudApiLevel != apiLevel;
                 manifest.IsHide = isHide;
                 
                 manifest.Changelog =
