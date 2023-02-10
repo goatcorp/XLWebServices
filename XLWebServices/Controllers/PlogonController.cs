@@ -99,6 +99,9 @@ public class PlogonController : ControllerBase
     {
         if (!CheckAuthHeader())
             return Unauthorized();
+
+        if (_stagedPlugins.Any(x => x.InternalName == payload.InternalName && x.Dip17Track == payload.Dip17Track))
+            return Ok();
         
         _stagedPlugins.Add(payload);
 
