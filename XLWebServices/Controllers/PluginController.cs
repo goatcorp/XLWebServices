@@ -93,7 +93,7 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery(Name = "track")] string? dip17Track = null)
+    public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery] int minApiLevel = 0, [FromQuery(Name = "track")] string? dip17Track = null)
     {
         if (this.pluginData.HasFailed && this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
@@ -110,10 +110,11 @@ public class PluginController : ControllerBase
             pluginMaster = this.pluginData.Get()!.PluginMaster;
         }
 
-        // Filter the results to valid API levels only
-        var minimumApiLevel = this.configuration.GetValue<int>("ApiLevel");
         pluginMaster ??= Array.Empty<PluginManifest>();
-        pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minimumApiLevel).ToArray();
+        if (minApiLevel > 0)
+        {
+            pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minApiLevel).ToArray();
+        }
 
         return Content(JsonSerializer.Serialize(pluginMaster), "application/json");
     }
