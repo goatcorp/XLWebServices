@@ -176,18 +176,22 @@ public class PlogonController : ControllerBase
                     continue;
                 }
 
-                var isOtherRepo = info.Dip17Track != Dip17SystemDefine.MainTrack;
+                // Send discord notification
+                if (info.Changelog == null || !info.Changelog.StartsWith("nofranz"))
+                {
+                    var isOtherRepo = info.Dip17Track != Dip17SystemDefine.MainTrack;
 
-                var author = await GetPrAuthor(info.PrNumber) ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
+                    var author = await GetPrAuthor(info.PrNumber) ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
                 
-                var embed = new EmbedBuilder()
-                    .WithTitle($"{manifest.Name} (v{info.Version})")
-                    .WithAuthor(author.Name, author.Icon)
-                    .WithDescription(info.Changelog ?? "This dev didn't write a changelog")
-                    .WithThumbnailUrl(GetDip17IconUrl(info.Dip17Track, info.InternalName))
-                    .Build();
+                    var embed = new EmbedBuilder()
+                        .WithTitle($"{manifest.Name} (v{info.Version})")
+                        .WithAuthor(author.Name, author.Icon)
+                        .WithDescription(info.Changelog ?? "This dev didn't write a changelog")
+                        .WithThumbnailUrl(GetDip17IconUrl(info.Dip17Track, info.InternalName))
+                        .Build();
 
-                await _discord.SendRelease(embed, isOtherRepo);
+                    await _discord.SendRelease(embed, isOtherRepo);
+                }
             }
 
             _logger.LogInformation("Committed {NumPlogons} in {Secs}s", staged.Count, stopwatch.Elapsed.TotalSeconds);

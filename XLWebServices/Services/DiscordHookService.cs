@@ -8,9 +8,9 @@ public class DiscordHookService
     private readonly IConfiguration _configuration;
     private readonly ILogger<DiscordHookService> _logger;
 
-    private DiscordWebhookClient? _adminClient;
-    private DiscordWebhookClient? _releasesClient;
-    private DiscordWebhookClient? _releasesTestingClient;
+    private readonly DiscordWebhookClient? _adminClient;
+    private readonly DiscordWebhookClient? _releasesClient;
+    private readonly DiscordWebhookClient? _releasesTestingClient;
 
     private string AdminFooterText => $"XLWebServices {Util.GetGitHash()}";
 
