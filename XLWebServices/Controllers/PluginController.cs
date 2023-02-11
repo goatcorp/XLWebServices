@@ -98,15 +98,24 @@ public class PluginController : ControllerBase
         if (this.pluginData.HasFailed && this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
 
+        IReadOnlyList<PluginManifest>? pluginMaster;
         if (!string.IsNullOrEmpty(dip17Track))
         {
             if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
                 return NotFound("Not found track");
-            
-            return Content(JsonSerializer.Serialize(trackMaster), "application/json");
+            pluginMaster = trackMaster;
         }
-        
-        return Content(JsonSerializer.Serialize(this.pluginData.Get()!.PluginMaster), "application/json");
+        else
+        {
+            pluginMaster = this.pluginData.Get()!.PluginMaster;
+        }
+
+        // Filter the results to valid API levels only
+        var minimumApiLevel = this.configuration.GetValue<int>("ApiLevel");
+        pluginMaster ??= Array.Empty<PluginManifest>();
+        pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minimumApiLevel).ToArray();
+
+        return Content(JsonSerializer.Serialize(pluginMaster), "application/json");
     }
 
     [HttpGet("{internalName}")]
