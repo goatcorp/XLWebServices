@@ -42,8 +42,6 @@ public class PluginController : ControllerBase
             return StatusCode(500, "Precondition failed");
         
         var masterList = this.pluginData.Get()!.PluginMaster;
-        //if (!UseFileProxy)
-        //    masterList = this.pluginData.PluginMasterNoProxy;
 
         var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
         if (manifest == null)
@@ -105,26 +103,10 @@ public class PluginController : ControllerBase
             if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
                 return NotFound("Not found track");
             
-            return Content(JsonSerializer.Serialize(trackMaster, new JsonSerializerOptions
-            {
-                //WriteIndented = true,
-            }), "application/json");
+            return Content(JsonSerializer.Serialize(trackMaster), "application/json");
         }
         
-        //if (proxy && UseFileProxy)
-        //{
-            return Content(JsonSerializer.Serialize(this.pluginData.Get()!.PluginMaster, new JsonSerializerOptions
-            {
-                //WriteIndented = true,
-            }), "application/json");
-        //}
-
-        /*
-        return Content(JsonSerializer.Serialize(this.pluginData.PluginMasterNoProxy, new JsonSerializerOptions
-        {
-            WriteIndented = true,
-        }), "application/json");
-        */
+        return Content(JsonSerializer.Serialize(this.pluginData.Get()!.PluginMaster), "application/json");
     }
 
     [HttpGet("{internalName}")]
@@ -147,24 +129,13 @@ public class PluginController : ControllerBase
         if (plugin == null)
             return NotFound("Not found plugin");
 
-        return Content(JsonSerializer.Serialize(plugin, new JsonSerializerOptions
-        {
-            //WriteIndented = true,
-        }), "application/json");
+        return Content(JsonSerializer.Serialize(plugin), "application/json");
     }
 
     [DisableCors]
     [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
-        /*
-        if (key != this.configuration["CacheClearKey"])
-            return BadRequest();
-
-        await this.pluginData.RunFallibleAsync(s => s.ClearCache());
-        this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
-        */
-
         return Ok(this.pluginData.HasFailed);
     }
 
