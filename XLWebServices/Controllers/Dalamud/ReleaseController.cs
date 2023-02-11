@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 using Prometheus;
 using XLWebServices.Services;
+using XLWebServices.Services.JobQueue;
 
 namespace XLWebServices.Controllers;
 
@@ -14,6 +16,8 @@ public class ReleaseController : ControllerBase
     private readonly FileCacheService cache;
     private readonly IConfiguration configuration;
     private readonly DiscordHookService discordHookService;
+    private readonly IBackgroundTaskQueue _queue;
+    private readonly ILogger<ReleaseController> _logger;
 
     private static readonly Counter DownloadsOverTime =
         Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
@@ -21,12 +25,14 @@ public class ReleaseController : ControllerBase
     private static bool isUseCanary = false;
 
     public ReleaseController(FallibleService<DalamudReleaseDataService> releaseCache, FileCacheService cache,
-        IConfiguration configuration, DiscordHookService discordHookService)
+        IConfiguration configuration, DiscordHookService discordHookService, IBackgroundTaskQueue queue, ILogger<ReleaseController> logger)
     {
         this.releaseCache = releaseCache;
         this.cache = cache;
         this.configuration = configuration;
         this.discordHookService = discordHookService;
+        _queue = queue;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -139,8 +145,26 @@ public class ReleaseController : ControllerBase
         if (key != this.configuration["CacheClearKey"])
             return BadRequest();
 
-        await this.releaseCache.Get()!.ClearCache();
+        await _queue.QueueBackgroundWorkItemAsync(BuildClearCacheWorkItemAsync);
 
-        return Ok(this.releaseCache.HasFailed);
+        return Ok();
+    }
+    
+    private async ValueTask BuildClearCacheWorkItemAsync(CancellationToken token)
+    {
+        _logger.LogInformation("Queued plogon commit is starting");
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+
+        try
+        {
+            await this.releaseCache.Get()!.ClearCache();
+
+            _logger.LogInformation("ClearCache() in {Secs}s", stopwatch.Elapsed.TotalSeconds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not process job");
+        }
     }
 }
