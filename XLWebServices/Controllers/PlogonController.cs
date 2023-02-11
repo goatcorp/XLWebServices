@@ -75,7 +75,7 @@ public class PlogonController : ControllerBase
         public string InternalName { get; set; }
         public string Version { get; set; }
         public string Dip17Track { get; set; }
-        public int PrNumber { get; set; }
+        public int? PrNumber { get; set; }
         public string? Changelog { get; set; }
     }
     
@@ -133,12 +133,15 @@ public class PlogonController : ControllerBase
         return Content(changelog.ToString());
     }
 
-    private async Task<(string Name, string Icon)?> GetPrAuthor(int prNum)
+    private async Task<(string Name, string Icon)?> GetPrAuthor(int? prNum)
     {
+        if (prNum == null)
+            return null;
+        
         var pr = await _github.Client.Repository.PullRequest.Get(
             _config.Dip17RepoOwner,
             _config.Dip17RepoName,
-            prNum);
+            prNum.Value);
 
         if (pr == null)
             return null;
