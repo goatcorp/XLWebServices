@@ -1,0 +1,7 @@
+version: "3.9"
+services:
+  redis:
+    image: "redis:7.0.8"
+    command: 'redis-server --save "" --loglevel warning'
+    ports:
+      - "6379:6379"
