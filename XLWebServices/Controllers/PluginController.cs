@@ -42,8 +42,6 @@ public class PluginController : ControllerBase
             return StatusCode(500, "Precondition failed");
         
         var masterList = this.pluginData.Get()!.PluginMaster;
-        //if (!UseFileProxy)
-        //    masterList = this.pluginData.PluginMasterNoProxy;
 
         var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
         if (manifest == null)
@@ -95,36 +93,30 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery(Name = "track")] string? dip17Track = null)
+    public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery] int minApiLevel = 0, [FromQuery(Name = "track")] string? dip17Track = null)
     {
         if (this.pluginData.HasFailed && this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
 
+        IReadOnlyList<PluginManifest>? pluginMaster;
         if (!string.IsNullOrEmpty(dip17Track))
         {
             if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
                 return NotFound("Not found track");
-            
-            return Content(JsonSerializer.Serialize(trackMaster, new JsonSerializerOptions
-            {
-                //WriteIndented = true,
-            }), "application/json");
+            pluginMaster = trackMaster;
         }
-        
-        //if (proxy && UseFileProxy)
-        //{
-            return Content(JsonSerializer.Serialize(this.pluginData.Get()!.PluginMaster, new JsonSerializerOptions
-            {
-                //WriteIndented = true,
-            }), "application/json");
-        //}
-
-        /*
-        return Content(JsonSerializer.Serialize(this.pluginData.PluginMasterNoProxy, new JsonSerializerOptions
+        else
         {
-            WriteIndented = true,
-        }), "application/json");
-        */
+            pluginMaster = this.pluginData.Get()!.PluginMaster;
+        }
+
+        pluginMaster ??= Array.Empty<PluginManifest>();
+        if (minApiLevel > 0)
+        {
+            pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minApiLevel).ToArray();
+        }
+
+        return Content(JsonSerializer.Serialize(pluginMaster), "application/json");
     }
 
     [HttpGet("{internalName}")]
@@ -147,24 +139,13 @@ public class PluginController : ControllerBase
         if (plugin == null)
             return NotFound("Not found plugin");
 
-        return Content(JsonSerializer.Serialize(plugin, new JsonSerializerOptions
-        {
-            //WriteIndented = true,
-        }), "application/json");
+        return Content(JsonSerializer.Serialize(plugin), "application/json");
     }
 
     [DisableCors]
     [HttpPost]
     public async Task<IActionResult> ClearCache([FromQuery] string key)
     {
-        /*
-        if (key != this.configuration["CacheClearKey"])
-            return BadRequest();
-
-        await this.pluginData.RunFallibleAsync(s => s.ClearCache());
-        this.cache.ClearCategory(FileCacheService.CachedFile.FileCategory.Plugin);
-        */
-
         return Ok(this.pluginData.HasFailed);
     }
 
