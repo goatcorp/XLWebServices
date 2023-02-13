@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using Octokit;
 using Tomlyn;
+using XLWebServices.Data;
+using XLWebServices.Data.Models;
 
 namespace XLWebServices.Services.PluginData;
 
@@ -13,6 +15,7 @@ public class PluginDataService
     private readonly IConfiguration _configuration;
     private readonly FallibleService<RedisService> _redis;
     private readonly DiscordHookService _discord;
+    private readonly WsDbContext _dbContext;
 
     private readonly HttpClient _client;
 
@@ -27,13 +30,20 @@ public class PluginDataService
 
     public DateTime LastUpdate { get; private set; }
 
-    public PluginDataService(ILogger<PluginDataService> logger, GitHubService github, IConfiguration  configuration, FallibleService<RedisService> redis, DiscordHookService discord)
+    public PluginDataService(
+        ILogger<PluginDataService> logger,
+        GitHubService github,
+        IConfiguration configuration,
+        FallibleService<RedisService> redis,
+        DiscordHookService discord,
+        WsDbContext dbContext)
     {
         _logger = logger;
         _github = github;
         _configuration = configuration;
         _redis = redis;
         _discord = discord;
+        _dbContext = dbContext;
 
         _client = new HttpClient();
     }
@@ -152,6 +162,8 @@ public class PluginDataService
             RepoSha = sha;
             RepoShaDip17 = d17.Sha;
             LastUpdate = DateTime.Now;
+            
+            EnsureDatabaseConsistent();
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
             await _discord.AdminSendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}\nSHA(D17): {RepoShaDip17}",
@@ -272,6 +284,24 @@ public class PluginDataService
         return (d17Master, sha);
     }
 
+    public async Task EnsureDatabaseConsistent()
+    {
+        if (PluginMaster == null)
+            return;
+        
+        foreach (var manifest in PluginMaster)
+        {
+            var dbPlugin = _dbContext.Plugins.FirstOrDefault(x => x.InternalName == manifest.InternalName);
+            dbPlugin ??= new Plugin();
+
+            dbPlugin.InternalName = manifest.InternalName;
+
+            _dbContext.Plugins.Update(dbPlugin);
+        }
+
+        await _dbContext.SaveChangesAsync();
+    }
+    
     private async Task<(long LastUpdate, string? Changelog)> GetPluginInfo(PluginManifest manifest, RepositoryContent content, string repoOwner, string repoName)
     {
         if (_redis.HasFailed)

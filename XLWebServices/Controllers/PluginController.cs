@@ -1,7 +1,10 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Prometheus;
+using XLWebServices.Data;
+using XLWebServices.Data.Models;
 using XLWebServices.Services;
 using XLWebServices.Services.PluginData;
 
@@ -18,6 +21,7 @@ public class PluginController : ControllerBase
     private readonly FallibleService<PluginDataService> pluginData;
     private readonly FallibleService<DalamudReleaseDataService> releaseData;
     private readonly FileCacheService cache;
+    private readonly WsDbContext _dbContext;
 
     private static bool UseFileProxy = true;
 
@@ -25,7 +29,7 @@ public class PluginController : ControllerBase
 
     private const string RedisCumulativeKey = "XLPluginDlCumulative";
 
-    public PluginController(ILogger<PluginController> logger, FallibleService<RedisService> redis, IConfiguration configuration, FallibleService<PluginDataService> pluginData, FallibleService<DalamudReleaseDataService> dalamudReleaseData, FileCacheService cache)
+    public PluginController(ILogger<PluginController> logger, FallibleService<RedisService> redis, IConfiguration configuration, FallibleService<PluginDataService> pluginData, FallibleService<DalamudReleaseDataService> dalamudReleaseData, FileCacheService cache, WsDbContext dbContext)
     {
         this.logger = logger;
         this.redis = redis;
@@ -33,6 +37,7 @@ public class PluginController : ControllerBase
         this.pluginData = pluginData;
         this.releaseData = dalamudReleaseData;
         this.cache = cache;
+        _dbContext = dbContext;
     }
 
     [HttpGet("{internalName}")]
@@ -140,6 +145,41 @@ public class PluginController : ControllerBase
             return NotFound("Not found plugin");
 
         return Content(JsonSerializer.Serialize(plugin), "application/json");
+    }
+
+    public class HistoryResponse
+    {
+        public List<PluginVersion> Versions { get; set; }
+    }
+
+    [HttpGet("{internalName}")]
+    public IActionResult History(string internalName, [FromQuery(Name = "track")] string? dip17Track = null)
+    {
+        if (this.pluginData.HasFailed)
+            return StatusCode(500, "Precondition failed");
+
+        var master = this.pluginData.Get()!.PluginMaster;
+        
+        if (!string.IsNullOrEmpty(dip17Track))
+        {
+            if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
+                return NotFound("Not found track");
+
+            master = trackMaster;
+        }
+        
+        var plugin = master!.FirstOrDefault(x => x.InternalName == internalName);
+        if (plugin == null)
+            return NotFound("Not found plugin");
+
+        var dbPlugin = _dbContext.Plugins.Include(x => x.VersionHistory).FirstOrDefault(x => x.InternalName == internalName);
+        if (dbPlugin == null)
+            return StatusCode(500, "No db plugin");
+        
+        return new OkObjectResult(new HistoryResponse
+        {
+            Versions = dbPlugin.VersionHistory.OrderByDescending(x => x.PublishedAt).ToList(),
+        });
     }
 
     [DisableCors]

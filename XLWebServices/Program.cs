@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using XLWebServices;
+using XLWebServices.Data;
 using XLWebServices.Services;
 using XLWebServices.Services.JobQueue;
 using XLWebServices.Services.PluginData;
@@ -10,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddSingleton<ConfigMasterService>();
 builder.Services.AddSingleton<FallibleService<RedisService>>();
+builder.Services.AddDbContext<WsDbContext>();
 
 builder.Services.AddHostedService<QueuedHostedService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue>(ctx => 
@@ -97,6 +100,12 @@ var discord = app.Services.GetRequiredService<DiscordHookService>();
 var redis = app.Services.GetRequiredService<FallibleService<RedisService>>();
 if (redis.HasFailed)
     await discord.AdminSendError("Couldn't connect to redis", "Redis");
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<WsDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 app.Services.GetRequiredService<GitHubService>();
 

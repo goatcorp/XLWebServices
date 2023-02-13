@@ -3,9 +3,9 @@ namespace XLWebServices.Services.JobQueue;
 public interface IBackgroundTaskQueue
 {
     ValueTask QueueBackgroundWorkItemAsync(
-        Func<CancellationToken, ValueTask> workItem);
+        Func<CancellationToken, IServiceProvider, ValueTask> workItem);
 
-    ValueTask<Func<CancellationToken, ValueTask>> DequeueAsync(
+    ValueTask<Func<CancellationToken, IServiceProvider, ValueTask>> DequeueAsync(
         CancellationToken cancellationToken);
 
     public int NumJobsInQueue { get; }

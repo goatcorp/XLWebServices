@@ -4,7 +4,7 @@ namespace XLWebServices.Services.JobQueue;
 
 public sealed class DefaultBackgroundTaskQueue : IBackgroundTaskQueue
 {
-    private readonly Channel<Func<CancellationToken, ValueTask>> _queue;
+    private readonly Channel<Func<CancellationToken, IServiceProvider, ValueTask>> _queue;
 
     public int NumJobsInQueue => _queue.Reader.Count;
 
@@ -14,11 +14,11 @@ public sealed class DefaultBackgroundTaskQueue : IBackgroundTaskQueue
         {
             FullMode = BoundedChannelFullMode.Wait
         };
-        _queue = Channel.CreateBounded<Func<CancellationToken, ValueTask>>(options);
+        _queue = Channel.CreateBounded<Func<CancellationToken, IServiceProvider, ValueTask>>(options);
     }
 
     public async ValueTask QueueBackgroundWorkItemAsync(
-        Func<CancellationToken, ValueTask> workItem)
+        Func<CancellationToken, IServiceProvider, ValueTask> workItem)
     {
         if (workItem is null)
         {
@@ -28,10 +28,10 @@ public sealed class DefaultBackgroundTaskQueue : IBackgroundTaskQueue
         await _queue.Writer.WriteAsync(workItem);
     }
 
-    public async ValueTask<Func<CancellationToken, ValueTask>> DequeueAsync(
+    public async ValueTask<Func<CancellationToken, IServiceProvider, ValueTask>> DequeueAsync(
         CancellationToken cancellationToken)
     {
-        Func<CancellationToken, ValueTask>? workItem =
+        Func<CancellationToken, IServiceProvider, ValueTask>? workItem =
             await _queue.Reader.ReadAsync(cancellationToken);
 
         return workItem;

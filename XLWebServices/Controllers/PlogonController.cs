@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Discord;
 using Microsoft.AspNetCore.Mvc;
+using XLWebServices.Data;
+using XLWebServices.Data.Models;
 using XLWebServices.Services;
 using XLWebServices.Services.JobQueue;
 using XLWebServices.Services.PluginData;
@@ -88,7 +90,7 @@ public class PlogonController : ControllerBase
         var toCommit = _stagedPlugins.ToList();
         _stagedPlugins.Clear();
 
-        await _queue.QueueBackgroundWorkItemAsync(token => BuildCommitWorkItemAsync(token, toCommit));
+        await _queue.QueueBackgroundWorkItemAsync((token, provider) => BuildCommitWorkItemAsync(token, provider, toCommit));
 
         return Ok();
     }
@@ -155,12 +157,15 @@ public class PlogonController : ControllerBase
             $"https://raw.githubusercontent.com/{_config.Dip17DistRepoOwner}/{_config.Dip17DistRepoName}/main/{track}/{internalName}/images/icon.png";
     }
     
-    private async ValueTask BuildCommitWorkItemAsync(CancellationToken token, List<StagedPluginInfo> staged)
+    private async ValueTask BuildCommitWorkItemAsync(CancellationToken token, IServiceProvider provider, List<StagedPluginInfo> staged)
     {
         _logger.LogInformation("Queued plogon commit is starting");
         var stopwatch = new Stopwatch();
         stopwatch.Start();
         var data = _data.Get()!;
+        
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WsDbContext>();
 
         try
         {
@@ -179,16 +184,36 @@ public class PlogonController : ControllerBase
                     continue;
                 }
 
+                // ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
+                var author = await GetPrAuthor(info.PrNumber);
+
+                var dbPlugin  = db.Plugins.FirstOrDefault(x => x.InternalName == info.InternalName);
+                if (dbPlugin != null)
+                {
+                    var version = new PluginVersion
+                    {
+                        Plugin = dbPlugin,
+                        Dip17Track = info.Dip17Track,
+                        Version = info.Version,
+                        PrNumber = info.PrNumber,
+                        PublishedAt = DateTime.Now,
+                        PublishedBy = author?.Name
+                    };
+                    dbPlugin.VersionHistory.Add(version);
+                }
+                else
+                {
+                    _logger.LogError("Plugin '{InternalName}' not found in db!!", info.InternalName);
+                }
+                
                 // Send discord notification
                 if (info.Changelog == null || !info.Changelog.StartsWith("nofranz"))
                 {
                     var isOtherRepo = info.Dip17Track != Dip17SystemDefine.MainTrack;
-
-                    var author = await GetPrAuthor(info.PrNumber) ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
-                
+                    
                     var embed = new EmbedBuilder()
                         .WithTitle($"{manifest.Name} (v{info.Version})")
-                        .WithAuthor(author.Name, author.Icon)
+                        .WithAuthor(author?.Name, author?.Icon)
                         .WithDescription(info.Changelog ?? "This dev didn't write a changelog")
                         .WithThumbnailUrl(GetDip17IconUrl(info.Dip17Track, info.InternalName))
                         .Build();
@@ -196,6 +221,8 @@ public class PlogonController : ControllerBase
                     await _discord.SendRelease(embed, isOtherRepo);
                 }
             }
+
+            await db.SaveChangesAsync(token);
 
             _logger.LogInformation("Committed {NumPlogons} in {Secs}s", staged.Count, stopwatch.Elapsed.TotalSeconds);
         }

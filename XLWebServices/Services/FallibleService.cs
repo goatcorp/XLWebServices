@@ -12,7 +12,7 @@ public class FallibleService<T> where T : class
         _logger = logger;
         try
         {
-            _instance = ActivatorUtilities.CreateInstance<T>(serviceProvider);
+            _instance = ActivatorUtilities.CreateInstance<T>(serviceProvider.CreateScope().ServiceProvider);
         }
         catch (Exception ex)
         {

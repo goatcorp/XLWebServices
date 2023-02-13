@@ -13,6 +13,8 @@ public class ConfigMasterService
     
     public string PlogonApiKey { get; private set; } = null!;
 
+    public string DatabasePath { get; private set; } = null!;
+
     public ConfigMasterService(IConfiguration config, ILogger<ConfigMasterService> logger)
     {
         _config = config;
@@ -30,6 +32,8 @@ public class ConfigMasterService
         Dip17DistRepoName = AssignCritical("GitHub:PluginDistD17:Name");
 
         PlogonApiKey = AssignCritical("PlogonApiKey");
+
+        DatabasePath = AssignCritical("DatabasePath");
     }
 
     private string AssignCritical(string name)

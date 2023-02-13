@@ -150,7 +150,7 @@ public class ReleaseController : ControllerBase
         return Ok();
     }
     
-    private async ValueTask BuildClearCacheWorkItemAsync(CancellationToken token)
+    private async ValueTask BuildClearCacheWorkItemAsync(CancellationToken token, IServiceProvider _)
     {
         _logger.LogInformation("Queued plogon commit is starting");
         var stopwatch = new Stopwatch();

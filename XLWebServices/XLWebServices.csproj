@@ -9,6 +9,12 @@
     <ItemGroup>
         <PackageReference Include="Discord.Net.Webhook" Version="3.3.2" />
         <PackageReference Include="LibGit2Sharp" Version="0.27.0-preview-0175" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="7.0.2" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.2" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="7.0.2">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="prometheus-net" Version="7.0.0" />
         <PackageReference Include="prometheus-net.AspNetCore" Version="7.0.0" />
         <PackageReference Include="Sentry.AspNetCore" Version="3.28.0" />

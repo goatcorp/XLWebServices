@@ -4,11 +4,13 @@ public sealed class QueuedHostedService : BackgroundService
 {
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly ILogger<QueuedHostedService> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public QueuedHostedService(
         IBackgroundTaskQueue taskQueue,
-        ILogger<QueuedHostedService> logger) =>
-        (_taskQueue, _logger) = (taskQueue, logger);
+        ILogger<QueuedHostedService> logger,
+        IServiceProvider serviceProvider) =>
+        (_taskQueue, _logger, _serviceProvider) = (taskQueue, logger, serviceProvider);
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -24,10 +26,10 @@ public sealed class QueuedHostedService : BackgroundService
         {
             try
             {
-                Func<CancellationToken, ValueTask>? workItem =
+                Func<CancellationToken, IServiceProvider, ValueTask>? workItem =
                     await _taskQueue.DequeueAsync(stoppingToken);
 
-                await workItem(stoppingToken);
+                await workItem(stoppingToken, _serviceProvider);
             }
             catch (OperationCanceledException)
             {
