@@ -196,6 +196,7 @@ public class PlogonController : ControllerBase
                         Dip17Track = info.Dip17Track,
                         Version = info.Version,
                         PrNumber = info.PrNumber,
+                        Changelog = info.Changelog,
                         PublishedAt = DateTime.Now,
                         PublishedBy = author?.Name
                     };
