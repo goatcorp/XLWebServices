@@ -14,4 +14,5 @@ public class PluginVersion
     public DateTime PublishedAt { get; set; }
     public int? PrNumber { get; set; }
     public string? PublishedBy { get; set; }
+    public bool IsHidden { get; set; }
 }

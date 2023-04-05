@@ -187,6 +187,15 @@ public class PlogonController : ControllerBase
                 // ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
                 var author = await GetPrAuthor(info.PrNumber);
 
+                var shallExplicitlyHideChangelog = info.Changelog != null && info.Changelog.StartsWith(Dip17SystemDefine.ChangelogMarkerHide);
+                if (shallExplicitlyHideChangelog)
+                    info.Changelog = info.Changelog![Dip17SystemDefine.ChangelogMarkerHide.Length..];
+
+                if (info.Changelog != null)
+                {
+                    info.Changelog = info.Changelog.TrimStart().TrimEnd();
+                }
+
                 var dbPlugin  = db.Plugins.FirstOrDefault(x => x.InternalName == info.InternalName);
                 if (dbPlugin != null)
                 {
@@ -198,7 +207,8 @@ public class PlogonController : ControllerBase
                         PrNumber = info.PrNumber,
                         Changelog = info.Changelog,
                         PublishedAt = DateTime.Now,
-                        PublishedBy = author?.Name
+                        PublishedBy = author?.Name,
+                        IsHidden = shallExplicitlyHideChangelog
                     };
                     dbPlugin.VersionHistory.Add(version);
                 }
@@ -208,7 +218,7 @@ public class PlogonController : ControllerBase
                 }
                 
                 // Send discord notification
-                if (info.Changelog == null || !info.Changelog.StartsWith("nofranz"))
+                if (info.Changelog == null || !shallExplicitlyHideChangelog)
                 {
                     var isOtherRepo = info.Dip17Track != Dip17SystemDefine.MainTrack;
                     
