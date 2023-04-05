@@ -62,7 +62,7 @@ public class FileCacheService
             this.logger.LogWarning($"Failed to add file to cachedById!!!! Duplicate?\n\t{fileName}\n\t{file.Id}\n\t{cacheKey}\n\t{url}\n\t{category}");
         }
 
-        this.logger.LogInformation($"Now cached: {this.cached.Count}, {this.cachedById.Count}, {url}, {cacheKey}, {file.Id}");
+        this.logger.LogInformation($"Now cached: {this.cached.Count}, {this.cachedById.Count}, {url}, {cacheKey}, {file.Id}, {file.Length}");
 
         return file;
     }
