@@ -157,28 +157,19 @@ public class PluginController : ControllerBase
     {
         if (this.pluginData.HasFailed)
             return StatusCode(500, "Precondition failed");
-
-        var master = this.pluginData.Get()!.PluginMaster;
         
         if (!string.IsNullOrEmpty(dip17Track))
         {
-            if (!this.pluginData.Get()!.PluginMastersDip17.TryGetValue(dip17Track, out var trackMaster))
-                return NotFound("Not found track");
-
-            master = trackMaster;
+            dip17Track = Dip17SystemDefine.MainTrack;
         }
         
-        var plugin = master!.FirstOrDefault(x => x.InternalName == internalName);
-        if (plugin == null)
-            return NotFound("Not found plugin");
-
         var dbPlugin = _dbContext.Plugins.Include(x => x.VersionHistory).FirstOrDefault(x => x.InternalName == internalName);
         if (dbPlugin == null)
-            return StatusCode(500, "No db plugin");
+            return NotFound("Not found plugin");
         
         return new OkObjectResult(new HistoryResponse
         {
-            Versions = dbPlugin.VersionHistory.OrderByDescending(x => x.PublishedAt).ToList(),
+            Versions = dbPlugin.VersionHistory.Where(x => x.Dip17Track == dip17Track).OrderByDescending(x => x.PublishedAt).ToList(),
         });
     }
 
