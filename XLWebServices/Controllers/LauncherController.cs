@@ -141,6 +141,10 @@ public class LauncherController : ControllerBase
             if (!_redis.HasFailed)
                 await _redis.Get()!.IncrementCount(RedisKeyStarts);
         }
+        else
+        {
+            DownloadsOverTime.WithLabels("Unknown").Inc();
+        }
         
         var isFirstStartup = Request.Headers["X-XL-FirstStart"].FirstOrDefault() == "yes";
         if (isFirstStartup)
