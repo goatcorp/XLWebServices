@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Octokit;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
 
 namespace XLWebServices.Services;
 
@@ -13,19 +15,22 @@ public class DalamudReleaseDataService
     private readonly ILogger<DalamudReleaseDataService> logger;
     private readonly GitHubService github;
     private readonly DiscordHookService discord;
+    private readonly ConfigMasterService configMaster;
 
     public IReadOnlyList<DalamudChangelog> DalamudChangelogs { get; private set; }
 
     public IReadOnlyDictionary<string, DalamudVersion> DalamudVersions { get; private set; }
 
     public DalamudReleaseDataService(IConfiguration config, FileCacheService cache,
-        ILogger<DalamudReleaseDataService> logger, GitHubService github, DiscordHookService discord)
+        ILogger<DalamudReleaseDataService> logger, GitHubService github, DiscordHookService discord,
+        ConfigMasterService configMaster)
     {
         this.config = config;
         this.cache = cache;
         this.logger = logger;
         this.github = github;
         this.discord = discord;
+        this.configMaster = configMaster;
     }
 
     public async Task ClearCache()
@@ -46,11 +51,18 @@ public class DalamudReleaseDataService
         var repoOwner = this.config["GitHub:DistribRepository:Owner"];
         var repoName = this.config["GitHub:DistribRepository:Name"];
 
-        var commit = await this.github.Client.Repository.Commit.Get(repoOwner, repoName, "main");
-        var sha = commit.Sha;
+        var commitDistrib = await this.github.Client.Repository.Commit.Get(repoOwner, repoName, "main");
+        var shaDistrib = commitDistrib.Sha;
+        
+        var commitDeclarative = await this.github.Client.Repository.Commit.Get(this.configMaster.DalamudDeclarativeRepoOwner, this.configMaster.DalamudDeclarativeRepoName, "main");
+        var shaDeclarative = commitDeclarative.Sha;
+
+        var declarative = await GetDeclarative(shaDeclarative);
+        if (declarative == null)
+            throw new Exception("Declarative was null");
 
         // Get tree
-        var tree = await this.github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, sha);
+        var tree = await this.github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, shaDistrib);
 
         if (tree == null)
             throw new Exception($"Repo {repoName} not found");
@@ -70,9 +82,12 @@ public class DalamudReleaseDataService
             logger.LogError(ex, "Couldn't fetch gamever from Thaliak");
         }
 
-        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, sha, currentGameVer);
+        var release = await GetDalamudRelease(string.Empty, repoOwner, repoName, shaDistrib);
         release.Changelog = DalamudChangelogs.FirstOrDefault(x => x.Version == release.AssemblyVersion);
 
+        if (!ApplyDeclarativeForVersion(declarative, release, currentGameVer))
+            throw new Exception("No declarative entry for release");
+        
         releasesDict.Add("release", release);
 
         foreach (var content in tree)
@@ -80,9 +95,14 @@ public class DalamudReleaseDataService
             if (content.Type != ContentType.Dir || content.Name == ".github" || content.Name == "runtimehashes")
                 continue;
 
-            var tempRelease = await GetDalamudRelease(content.Name, repoOwner, repoName, sha, currentGameVer);
-            
+            var tempRelease = await GetDalamudRelease(content.Name, repoOwner, repoName, shaDistrib);
 
+            if (!ApplyDeclarativeForVersion(declarative, tempRelease, currentGameVer))
+            {
+                this.logger.LogError("!!! No declarative for track {Track} !!!", content.Name);
+                continue;
+            }
+            
             if (content.Name == "canary")
             {
                 if (Version.Parse(release.AssemblyVersion) < Version.Parse(tempRelease.AssemblyVersion))
@@ -115,10 +135,35 @@ public class DalamudReleaseDataService
         await this.discord.AdminSendSuccess(discordMessage,
             "Dalamud releases updated!");
 
-        this.logger.LogInformation($"Correctly refreshed Dalamud releases");
+        this.logger.LogInformation("Correctly refreshed Dalamud releases. Declarative: {ShaDeclarative} Distrib: {ShaDistrib}", shaDeclarative, shaDistrib);
     }
 
-    private async Task<DalamudVersion> GetDalamudRelease(string trackName, string repoOwner, string repoName, string sha, string? currentGameVer)
+    private async Task<DalamudDeclarative?> GetDeclarative(string sha)
+    {
+        var deserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
+        
+        return deserializer.Deserialize<DalamudDeclarative>(Encoding.UTF8.GetString(
+            await this.github.Client.Repository.Content.GetRawContentByRef(this.configMaster.DalamudDeclarativeRepoOwner, this.configMaster.DalamudDeclarativeRepoName, "config.yaml", sha)));
+    }
+
+    private static bool ApplyDeclarativeForVersion(DalamudDeclarative declarative, DalamudVersion version, string? currentGameVer)
+    {
+        if (!declarative.Tracks.TryGetValue(version.Track, out var declarativeTrack)) return false;
+        
+        version.RuntimeRequired = true;
+        version.RuntimeVersion = declarativeTrack.RuntimeVersion;
+        version.Key = declarativeTrack.Key ?? string.Empty;
+        version.SupportedGameVer = declarativeTrack.ApplicableGameVersion;
+        
+        if (currentGameVer != null)
+            version.IsApplicableForCurrentGameVer = version.SupportedGameVer == currentGameVer;
+        
+        return true;
+    }
+
+    private async Task<DalamudVersion> GetDalamudRelease(string trackName, string repoOwner, string repoName, string sha)
     {
         if (!string.IsNullOrEmpty(trackName))
             trackName = $"{trackName}/";
@@ -136,12 +181,9 @@ public class DalamudReleaseDataService
         var releaseCache = await this.cache.CacheFile("latest.zip", $"{releaseJson.AssemblyVersion}-{trackName}", releaseUrl,
             FileCacheService.CachedFile.FileCategory.Dalamud);
 
-        releaseJson.Track = string.IsNullOrEmpty(trackName) ? "release" : trackName;
+        releaseJson.Track = string.IsNullOrEmpty(trackName) ? "release" : trackName.TrimEnd('/');
         releaseJson.DownloadUrl = $"{this.config["HostedUrl"]}/File/Get/{releaseCache.Id}";
 
-        if (currentGameVer != null)
-            releaseJson.IsApplicableForCurrentGameVer = releaseJson.SupportedGameVer == currentGameVer;
-        
         return releaseJson;
     }
 
@@ -259,6 +301,20 @@ public class DalamudReleaseDataService
         var thaliakJson = await thaliakResponse.Content.ReadFromJsonAsync<ThaliakGqlModel.Root>();
 
         return thaliakJson?.Data?.Repository?.LatestVersion?.VersionString;
+    }
+
+    public class DalamudDeclarative
+    {
+        public class DalamudDeclarativeTrack
+        {
+            public string? Key { get; set; }
+
+            public string ApplicableGameVersion { get; set; } = null!;
+
+            public string RuntimeVersion { get; set; } = null!;
+        }
+
+        public Dictionary<string, DalamudDeclarativeTrack> Tracks { get; set; } = new();
     }
 
     public class DalamudVersion

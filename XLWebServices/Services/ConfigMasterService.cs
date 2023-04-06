@@ -11,6 +11,9 @@ public class ConfigMasterService
     public string Dip17DistRepoOwner { get; private set; } = null!;
     public string Dip17DistRepoName { get; private set; } = null!;
     
+    public string DalamudDeclarativeRepoOwner { get; private set; } = null!;
+    public string DalamudDeclarativeRepoName { get; private set; } = null!;
+    
     public string PlogonApiKey { get; private set; } = null!;
 
     public string DatabasePath { get; private set; } = null!;
@@ -30,6 +33,9 @@ public class ConfigMasterService
         
         Dip17DistRepoOwner = AssignCritical("GitHub:PluginDistD17:Owner");
         Dip17DistRepoName = AssignCritical("GitHub:PluginDistD17:Name");
+        
+        DalamudDeclarativeRepoOwner = AssignCritical("GitHub:DalamudDeclarativeRepository:Owner");
+        DalamudDeclarativeRepoName = AssignCritical("GitHub:DalamudDeclarativeRepository:Name");
 
         PlogonApiKey = AssignCritical("PlogonApiKey");
 
