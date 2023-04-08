@@ -225,7 +225,7 @@ public class PlogonController : ControllerBase
                     var embed = new EmbedBuilder()
                         .WithTitle($"{manifest.Name} (v{info.Version})")
                         .WithAuthor(author?.Name, author?.Icon)
-                        .WithDescription(info.Changelog ?? "This dev didn't write a changelog")
+                        .WithDescription(string.IsNullOrEmpty(info.Changelog) ? "This dev didn't write a changelog." : info.Changelog)
                         .WithThumbnailUrl(GetDip17IconUrl(info.Dip17Track, info.InternalName))
                         .Build();
 
