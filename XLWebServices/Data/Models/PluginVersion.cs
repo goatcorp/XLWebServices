@@ -15,4 +15,8 @@ public class PluginVersion
     public int? PrNumber { get; set; }
     public string? PublishedBy { get; set; }
     public bool IsHidden { get; set; }
+    public bool? IsInitialRelease { get; set; }
+    public TimeSpan? TimeToMerge { get; set; }
+    public int? DiffLinesAdded { get; set; }
+    public int? DiffLinesRemoved { get; set; }
 }

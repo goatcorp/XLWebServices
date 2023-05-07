@@ -109,16 +109,19 @@ using (var scope = app.Services.CreateScope())
 
 app.Services.GetRequiredService<GitHubService>();
 
+/*
 var acs = app.Services.GetRequiredService<FallibleService<AssetCacheService>>();
 await acs.RunFallibleAsync(s => s.ClearCache());
 
+*/
 var drs = app.Services.GetRequiredService<FallibleService<DalamudReleaseDataService>>();
 await drs.RunFallibleAsync(s => s.ClearCache());
-
+/*
 var pds = app.Services.GetRequiredService<FallibleService<PluginDataService>>();
 await pds.RunFallibleAsync(s => s.ClearCache());
 
 var rds = app.Services.GetRequiredService<FallibleService<LauncherReleaseDataService>>();
 await rds.RunFallibleAsync(s => s.ClearCache());
+*/
 
 app.Run();

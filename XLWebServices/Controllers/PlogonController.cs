@@ -15,6 +15,7 @@ public class PlogonController : ControllerBase
 {
     private readonly FallibleService<RedisService> _redis;
     private readonly FallibleService<PluginDataService> _data;
+    private readonly WsDbContext _dbContext;
     private readonly GitHubService _github;
     private readonly DiscordHookService _discord;
     private readonly IBackgroundTaskQueue _queue;
@@ -31,6 +32,7 @@ public class PlogonController : ControllerBase
     public PlogonController(
         FallibleService<RedisService> redis,
         FallibleService<PluginDataService> data,
+        WsDbContext dbContext,
         GitHubService github,
         DiscordHookService discord,
         IBackgroundTaskQueue queue,
@@ -39,6 +41,7 @@ public class PlogonController : ControllerBase
     {
         _redis = redis;
         _data = data;
+        _dbContext = dbContext;
         _github = github;
         _discord = discord;
         _queue = queue;
@@ -79,6 +82,9 @@ public class PlogonController : ControllerBase
         public string Dip17Track { get; set; }
         public int? PrNumber { get; set; }
         public string? Changelog { get; set; }
+        public bool IsInitialRelease { get; set; }
+        public int DiffLinesAdded { get; set; }
+        public int DiffLinesRemoved { get; set; }
     }
     
     [HttpPost]
@@ -135,7 +141,38 @@ public class PlogonController : ControllerBase
         return Content(changelog.ToString());
     }
 
-    private async Task<(string Name, string Icon)?> GetPrAuthor(int? prNum)
+    public class PlogonStats
+    {
+        public TimeSpan MeanMergeTimeNew { get; set; }
+        public TimeSpan MeanMergeTimeUpdate { get; set; }
+    }
+    
+    [HttpGet]
+    public PlogonStats Stats()
+    {
+        const int windowSize = 16;
+        var stats = new PlogonStats();
+        
+        var pluginsWithMergeTime = _dbContext.PluginVersions.Where(x => x.TimeToMerge != null);
+        
+        var lastXNew = pluginsWithMergeTime
+            .Where(x => x.IsInitialRelease == true)
+            .TakeLast(windowSize);
+        var lastXNewSum = lastXNew.Sum(x => x.TimeToMerge!.Value.TotalHours);
+        if (lastXNew.Any())
+            stats.MeanMergeTimeNew = TimeSpan.FromHours(lastXNewSum / lastXNew.Count());
+        
+        var lastXUpdated = pluginsWithMergeTime
+            .Where(x => x.IsInitialRelease == false)
+            .TakeLast(windowSize);
+        var lastXUpdatedSum = lastXUpdated.Sum(x => x.TimeToMerge!.Value.TotalHours);
+        if (lastXUpdated.Any())
+            stats.MeanMergeTimeUpdate = TimeSpan.FromHours(lastXUpdatedSum / lastXUpdated.Count());
+
+        return stats;
+    }
+    
+    private async Task<(string Name, string Icon, TimeSpan? TimeToMerge)?> GetPrInfo(int? prNum)
     {
         if (prNum == null)
             return null;
@@ -148,7 +185,17 @@ public class PlogonController : ControllerBase
         if (pr == null)
             return null;
 
-        return (pr.User.Name ?? pr.User.Login, pr.User.AvatarUrl);
+        TimeSpan? timeToMerge = null;
+        if (pr.ClosedAt != null)
+        {
+            timeToMerge = pr.ClosedAt - pr.CreatedAt;
+        }
+        else
+        {
+            _logger.LogError("Dip17 PR {PrNum} wasn't closed when we were committing it???", prNum);
+        }
+        
+        return (pr.User.Name ?? pr.User.Login, pr.User.AvatarUrl, timeToMerge);
     }
 
     private string GetDip17IconUrl(string track, string internalName)
@@ -171,62 +218,64 @@ public class PlogonController : ControllerBase
         {
             await data.ClearCache();
 
-            foreach (var info in staged)
+            foreach (var pluginInfo in staged)
             {
-                // TODO: keep track of all previous changelogs
-
-                var manifest = data.PluginMastersDip17[info.Dip17Track]
-                    .FirstOrDefault(x => x.InternalName == info.InternalName);
+                var manifest = data.PluginMastersDip17[pluginInfo.Dip17Track]
+                    .FirstOrDefault(x => x.InternalName == pluginInfo.InternalName);
 
                 if (manifest == null)
                 {
-                    _logger.LogError("Couldn't find manifest for {InternalName}", info.InternalName);
+                    _logger.LogError("Couldn't find manifest for {InternalName}", pluginInfo.InternalName);
                     continue;
                 }
 
                 // ?? ("Unknown Author", "https://goatcorp.github.io/icons/gon.png");
-                var author = await GetPrAuthor(info.PrNumber);
+                var prInfo = await GetPrInfo(pluginInfo.PrNumber);
 
-                var shallExplicitlyHideChangelog = info.Changelog != null && info.Changelog.StartsWith(Dip17SystemDefine.ChangelogMarkerHide);
+                var shallExplicitlyHideChangelog = pluginInfo.Changelog != null && pluginInfo.Changelog.StartsWith(Dip17SystemDefine.ChangelogMarkerHide);
                 if (shallExplicitlyHideChangelog)
-                    info.Changelog = info.Changelog![Dip17SystemDefine.ChangelogMarkerHide.Length..];
+                    pluginInfo.Changelog = pluginInfo.Changelog![Dip17SystemDefine.ChangelogMarkerHide.Length..];
 
-                if (info.Changelog != null)
+                if (pluginInfo.Changelog != null)
                 {
-                    info.Changelog = info.Changelog.TrimStart().TrimEnd();
+                    pluginInfo.Changelog = pluginInfo.Changelog.TrimStart().TrimEnd();
                 }
 
-                var dbPlugin  = db.Plugins.FirstOrDefault(x => x.InternalName == info.InternalName);
+                var dbPlugin  = db.Plugins.FirstOrDefault(x => x.InternalName == pluginInfo.InternalName);
                 if (dbPlugin != null)
                 {
                     var version = new PluginVersion
                     {
                         Plugin = dbPlugin,
-                        Dip17Track = info.Dip17Track,
-                        Version = info.Version,
-                        PrNumber = info.PrNumber,
-                        Changelog = info.Changelog,
+                        Dip17Track = pluginInfo.Dip17Track,
+                        Version = pluginInfo.Version,
+                        PrNumber = pluginInfo.PrNumber,
+                        Changelog = pluginInfo.Changelog,
                         PublishedAt = DateTime.Now,
-                        PublishedBy = author?.Name,
-                        IsHidden = shallExplicitlyHideChangelog
+                        PublishedBy = prInfo?.Name,
+                        IsHidden = shallExplicitlyHideChangelog,
+                        DiffLinesAdded = pluginInfo.DiffLinesAdded,
+                        DiffLinesRemoved = pluginInfo.DiffLinesRemoved,
+                        IsInitialRelease = pluginInfo.IsInitialRelease,
+                        TimeToMerge = prInfo?.TimeToMerge,
                     };
                     dbPlugin.VersionHistory.Add(version);
                 }
                 else
                 {
-                    _logger.LogError("Plugin '{InternalName}' not found in db!!", info.InternalName);
+                    _logger.LogError("Plugin '{InternalName}' not found in db!!", pluginInfo.InternalName);
                 }
                 
                 // Send discord notification
-                if (info.Changelog == null || !shallExplicitlyHideChangelog)
+                if (pluginInfo.Changelog == null || !shallExplicitlyHideChangelog)
                 {
-                    var isOtherRepo = info.Dip17Track != Dip17SystemDefine.MainTrack;
+                    var isOtherRepo = pluginInfo.Dip17Track != Dip17SystemDefine.MainTrack;
                     
                     var embed = new EmbedBuilder()
-                        .WithTitle($"{manifest.Name} (v{info.Version})")
-                        .WithAuthor(author?.Name, author?.Icon)
-                        .WithDescription(string.IsNullOrEmpty(info.Changelog) ? "This dev didn't write a changelog." : info.Changelog)
-                        .WithThumbnailUrl(GetDip17IconUrl(info.Dip17Track, info.InternalName))
+                        .WithTitle($"{manifest.Name} (v{pluginInfo.Version})")
+                        .WithAuthor(prInfo?.Name, prInfo?.Icon)
+                        .WithDescription(string.IsNullOrEmpty(pluginInfo.Changelog) ? "This dev didn't write a changelog." : pluginInfo.Changelog)
+                        .WithThumbnailUrl(GetDip17IconUrl(pluginInfo.Dip17Track, pluginInfo.InternalName))
                         .Build();
 
                     await _discord.SendRelease(embed, isOtherRepo);
