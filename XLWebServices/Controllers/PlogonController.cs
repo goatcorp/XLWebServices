@@ -148,28 +148,31 @@ public class PlogonController : ControllerBase
     }
     
     [HttpGet]
-    public PlogonStats Stats()
+    public IActionResult Stats()
     {
+        if (!CheckAuthHeader())
+            return Unauthorized();
+        
         const int windowSize = 16;
         var stats = new PlogonStats();
         
-        var pluginsWithMergeTime = _dbContext.PluginVersions.Where(x => x.TimeToMerge != null);
+        var pluginsWithMergeTime = _dbContext.PluginVersions.Where(x => x.TimeToMerge != null).ToList();
         
         var lastXNew = pluginsWithMergeTime
             .Where(x => x.IsInitialRelease == true)
-            .TakeLast(windowSize);
+            .TakeLast(windowSize).ToList();
         var lastXNewSum = lastXNew.Sum(x => x.TimeToMerge!.Value.TotalHours);
         if (lastXNew.Any())
             stats.MeanMergeTimeNew = TimeSpan.FromHours(lastXNewSum / lastXNew.Count());
         
         var lastXUpdated = pluginsWithMergeTime
             .Where(x => x.IsInitialRelease == false)
-            .TakeLast(windowSize);
+            .TakeLast(windowSize).ToList();
         var lastXUpdatedSum = lastXUpdated.Sum(x => x.TimeToMerge!.Value.TotalHours);
         if (lastXUpdated.Any())
             stats.MeanMergeTimeUpdate = TimeSpan.FromHours(lastXUpdatedSum / lastXUpdated.Count());
 
-        return stats;
+        return new JsonResult(stats);
     }
     
     private async Task<(string Name, string Icon, TimeSpan? TimeToMerge)?> GetPrInfo(int? prNum)
