@@ -50,6 +50,11 @@ public class AssetCacheService
             }
         }
 
+        var packageFileUrl = $"https://github.com/{repoOwner}/{repoName}/raw/{sha}/package.zip";
+        var cachedPackageFile = await this.cache.CacheFile("asset-package", assetsInfo.Version.ToString(),
+            packageFileUrl, FileCacheService.CachedFile.FileCategory.Asset);
+        assetsInfo.PackageUrl = $"{this.config["HostedUrl"]}/File/Get/{cachedPackageFile.Id}";
+
         this.AssetVersion = assetsInfo.Version;
         this.Assets = assetsInfo.Assets;
         this.Response = assetsInfo;
@@ -67,6 +72,7 @@ public class AssetCacheService
     public class AssetResponse
     {
         public int Version { get; set; }
+        public string PackageUrl { get; set; }
         public List<Asset> Assets { get; set; }
     }
 }
