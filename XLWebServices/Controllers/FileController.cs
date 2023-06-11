@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Prometheus;
 using XLWebServices.Services;
 
 namespace XLWebServices.Controllers;
@@ -12,6 +13,8 @@ public class FileController : ControllerBase
     
     private static bool alwaysUseFileProxy = false;
     private static bool noAllowForceProxy = false;
+    
+    private static readonly Counter Requests = Metrics.CreateCounter("file_requests", "File Cache Requests", "Proxy");
 
     public FileController(FileCacheService cache, IConfiguration config)
     {
@@ -34,9 +37,13 @@ public class FileController : ControllerBase
         {
             var contentType = file.ContentType;
             contentType ??= "application/octet-stream";
+            
+            Requests.WithLabels(true.ToString()).Inc();
 
             return File(file.GetData(), contentType, file.OriginalName);
         }
+        
+        Requests.WithLabels(false.ToString()).Inc();
 
         return Redirect(file.OriginalUrl);
     }
@@ -56,6 +63,8 @@ public class FileController : ControllerBase
         {
             return Redirect(file.OriginalUrl);
         }
+        
+        Requests.WithLabels(true.ToString()).Inc();
 
         var contentType = file.ContentType;
         contentType ??= "application/octet-stream";
