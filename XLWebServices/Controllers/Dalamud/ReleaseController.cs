@@ -20,7 +20,7 @@ public class ReleaseController : ControllerBase
     private readonly ILogger<ReleaseController> _logger;
 
     private static readonly Counter DownloadsOverTime =
-        Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID");
+        Metrics.CreateCounter("xl_dalamud_startups", "Dalamud Unique Startups", "AppID", "Track");
 
     private static bool isUseCanary = false;
 
@@ -44,6 +44,9 @@ public class ReleaseController : ControllerBase
         if (string.IsNullOrEmpty(track))
             track = "release";
 
+        if (track == "staging")
+            track = "stg";
+
         if (string.IsNullOrEmpty(appId))
             appId = "goat";
 
@@ -54,7 +57,7 @@ public class ReleaseController : ControllerBase
         {
             case "release":
             {
-                DownloadsOverTime.WithLabels(appId).Inc();
+                DownloadsOverTime.WithLabels(appId, bucket == "Canary" ? "Canary" : "Control").Inc();
                 
                 if (bucket == "Canary" && this.releaseCache.Get()!.DalamudVersions.ContainsKey("canary") && isUseCanary)
                     return new JsonResult(this.releaseCache.Get()!.DalamudVersions["canary"]);
@@ -62,14 +65,12 @@ public class ReleaseController : ControllerBase
                 return new JsonResult(this.releaseCache.Get()!.DalamudVersions["release"]);
             }
 
-            case "staging":
-                return new JsonResult(this.releaseCache.Get()!.DalamudVersions["stg"]);
-
             default:
             {
                 if (!this.releaseCache.Get()!.DalamudVersions.TryGetValue(track, out var release))
                     return new JsonResult(this.releaseCache.Get()!.DalamudVersions["release"]);
 
+                DownloadsOverTime.WithLabels(appId, track).Inc();
                 return new JsonResult(release);
             }
         }
