@@ -158,7 +158,7 @@ public class PluginController : ControllerBase
         if (this.pluginData.HasFailed)
             return StatusCode(500, "Precondition failed");
         
-        if (!string.IsNullOrEmpty(dip17Track))
+        if (string.IsNullOrEmpty(dip17Track))
         {
             dip17Track = Dip17SystemDefine.MainTrack;
         }
