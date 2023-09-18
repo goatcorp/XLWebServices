@@ -26,6 +26,7 @@ public class PluginController : ControllerBase
     private static bool UseFileProxy = true;
 
     private static readonly Counter DownloadsOverTime = Metrics.CreateCounter("xl_plugindl", "XIVLauncher Plugin Downloads", "Name", "Testing");
+    private static readonly Counter EndorsementsOverTime = Metrics.CreateCounter("xl_pluginendorse", "XIVLauncher Plugin Endorsements", "Name");
 
     private const string RedisCumulativeKey = "XLPluginDlCumulative";
 
@@ -80,6 +81,23 @@ public class PluginController : ControllerBase
 
             return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
         }
+    }
+
+    [HttpPost("{internalName}")]
+    public async Task<IActionResult> Endorse(string internalName) {
+        if (this.redis.HasFailed && this.pluginData.Get()?.PluginMaster == null)
+            return StatusCode(500, "Precondition failed");
+        
+        var masterList = this.pluginData.Get()!.PluginMaster;
+
+        var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
+        if (manifest == null)
+            return BadRequest("Invalid plugin");
+        
+        EndorsementsOverTime.WithLabels(internalName.ToLower()).Inc();
+        var endCount = await this.redis.Get()!.IncrementEndCount(internalName);
+
+        return Content(endCount.ToString());
     }
     
     [HttpGet]

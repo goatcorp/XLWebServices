@@ -24,6 +24,7 @@ public class PluginManifest
         this.ApplicableVersion = toCopy.ApplicableVersion;
         this.DalamudApiLevel = toCopy.DalamudApiLevel;
         this.DownloadCount = toCopy.DownloadCount;
+        this.EndorsementCount = toCopy.EndorsementCount;
         this.LastUpdate = toCopy.LastUpdate;
         this.DownloadLinkInstall = toCopy.DownloadLinkInstall;
         this.DownloadLinkUpdate = toCopy.DownloadLinkUpdate;
@@ -147,6 +148,12 @@ public class PluginManifest
     /// </summary>
     [JsonPropertyName("DownloadCount")]
     public long DownloadCount { get; set; }
+
+    /// <summary>
+    ///     Gets the number of endorsements this plugin has.
+    /// </summary>
+    [JsonPropertyName("EndorsementCount")]
+    public long EndorsementCount { get; set; }
 
     /// <summary>
     ///     Gets the last time this plugin was updated.

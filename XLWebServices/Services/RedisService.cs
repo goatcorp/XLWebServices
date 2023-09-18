@@ -8,6 +8,7 @@ public class RedisService
     public IDatabase Database;
 
     private const string RedisCountPrefix = "PC1-";
+    private const string RedisEndCountPrefix = "PEC1-";
     private const string RedisPrPrefix = "PPR1-";
 
     public RedisService(ILogger<RedisService> logger, IConfiguration configuration)
@@ -44,6 +45,24 @@ public class RedisService
     public async Task<long> GetCount(string internalName)
     {
         var value = await this.Database.StringGetAsync(RedisCountPrefix + internalName);
+
+        if (value.IsNullOrEmpty)
+        {
+            return 0;
+        }
+
+        value.TryParse(out long result);
+        return result;
+    }
+
+    public async Task<long> IncrementEndCount(string internalName)
+    {
+        return await this.Database.StringIncrementAsync(RedisEndCountPrefix + internalName);
+    }
+
+    public async Task<long> GetEndCount(string internalName)
+    {
+        var value = await this.Database.StringGetAsync(RedisEndCountPrefix + internalName);
 
         if (value.IsNullOrEmpty)
         {
