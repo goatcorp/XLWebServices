@@ -1,3 +1,5 @@
+using System.Net;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
@@ -51,6 +53,13 @@ builder.Services.AddCors(options =>
         });
 });
 
+builder.Services.AddRateLimiter(o => {
+    o.AddPolicy("limitip", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(httpContext.Connection.RemoteIpAddress ?? IPAddress.None,
+            _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 10 }));
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 builder.WebHost.UseSentry(sentryBuilder =>
 {
     sentryBuilder.SendDefaultPii = false;
@@ -90,6 +99,9 @@ app.UseEndpoints(endpoints =>
     endpoints.MapControllers();
     endpoints.MapMetrics();
 });
+
+// UseRateLimiter must be used after the routes are registered
+app.UseRateLimiter();
 
 // Initialize services
 var logger = app.Services.GetRequiredService<ILogger<Program>>();

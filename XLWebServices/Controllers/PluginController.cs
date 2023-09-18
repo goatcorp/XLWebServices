@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using XLWebServices.Data;
@@ -84,6 +85,7 @@ public class PluginController : ControllerBase
     }
 
     [HttpPost("{internalName}")]
+    [EnableRateLimiting("limitip")]
     public async Task<IActionResult> Endorse(string internalName) {
         if (this.redis.HasFailed && this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
