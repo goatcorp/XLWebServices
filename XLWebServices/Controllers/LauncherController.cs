@@ -67,6 +67,8 @@ public class LauncherController : ControllerBase
         public string? Message { get; set; }
 
         public string FrontierUrl { get; set; }
+        
+        public string? CutOffBootver { get; set; }
 
         //public string FrontierOrigin { get; set; }
 
@@ -156,7 +158,8 @@ public class LauncherController : ControllerBase
                 await _redis.Get()!.IncrementCount(RedisKeyUniqueInstalls);
         }
         
-        lease.FrontierUrl = _configuration["LauncherClientConfig:FrontierUrl"];
+        lease.FrontierUrl = _configuration["LauncherClientConfig:FrontierUrl"] ?? throw new Exception("No frontier URL in config!");
+        lease.CutOffBootver = _configuration["LauncherClientConfig:CutOffBootVer"];
         //lease.FrontierOrigin = _configuration["LauncherClientConfig:FrontierOrigin"];
         lease.Flags = LeaseFeatureFlags.None;
 
