@@ -57,7 +57,7 @@ public class LauncherController : ControllerBase
     {
         None = 0,
         GlobalDisableDalamud = 1,
-        GlobalDisableLogin = 1 << 1,
+        ForceProxyDalamudAndAssets = 1 << 1,
     }
 
     public class Lease
@@ -166,8 +166,8 @@ public class LauncherController : ControllerBase
         if (_configuration["LauncherClientConfig:GlobalDisableDalamud"]?.ToLower() == "true")
             lease.Flags |= LeaseFeatureFlags.GlobalDisableDalamud;
         
-        if (_configuration["LauncherClientConfig:GlobalDisableLogin"]?.ToLower() == "true")
-            lease.Flags |= LeaseFeatureFlags.GlobalDisableLogin;
+        if (_configuration["LauncherClientConfig:ForceProxyDalamudAndAssets"]?.ToLower() == "true")
+            lease.Flags |= LeaseFeatureFlags.ForceProxyDalamudAndAssets;
         
         switch (track)
         {
@@ -185,6 +185,32 @@ public class LauncherController : ControllerBase
         lease.Success = true;
 
         return new JsonResult(lease);
+    }
+
+    public class LauncherClientConfig
+    {
+        public string FrontierUrl { get; set; }
+
+        public string? CutOffBootver { get; set; }
+
+        public LeaseFeatureFlags Flags { get; set; }
+    }
+    
+    [HttpGet]
+    public async Task<IActionResult> GetLauncherClientConfig()
+    {
+        var config = new LauncherClientConfig();
+        config.FrontierUrl = _configuration["LauncherClientConfig:FrontierUrl"] ?? throw new Exception("No frontier URL in config!");
+        config.CutOffBootver = _configuration["LauncherClientConfig:CutOffBootVer"];
+        config.Flags = LeaseFeatureFlags.None;
+        
+        if (_configuration["LauncherClientConfig:GlobalDisableDalamud"]?.ToLower() == "true")
+            config.Flags |= LeaseFeatureFlags.GlobalDisableDalamud;
+        
+        if (_configuration["LauncherClientConfig:ForceProxyDalamudAndAssets"]?.ToLower() == "true")
+            config.Flags |= LeaseFeatureFlags.ForceProxyDalamudAndAssets;
+
+        return new JsonResult(config);
     }
 
     [HttpGet("{file}")]
