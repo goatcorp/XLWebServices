@@ -111,10 +111,11 @@ public class PluginDataService
 
                 if (!_redis.HasFailed)
                 {
-                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
-                    if (dlCount.HasValue)
+                    var result = await _redis.RunFallibleAsync(async s => (await s.GetCount(manifest.InternalName), await s.GetEndCount(manifest.InternalName)));
+                    if (result is var (dlCount, endCount))
                     {
-                        manifest.DownloadCount = dlCount.Value;
+                        manifest.DownloadCount = dlCount;
+                        manifest.EndorsementCount = endCount;
                     }
                 }
                 
@@ -143,10 +144,11 @@ public class PluginDataService
 
                 if (!_redis.HasFailed)
                 {
-                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
-                    if (dlCount.HasValue)
+                    var result = await _redis.RunFallibleAsync(async s => (await s.GetCount(manifest.InternalName), await s.GetEndCount(manifest.InternalName)));
+                    if (result is var (dlCount, endCount))
                     {
-                        manifest.DownloadCount = dlCount.Value;
+                        manifest.DownloadCount = dlCount;
+                        manifest.EndorsementCount = endCount;
                     }
                 }
 
@@ -229,10 +231,11 @@ public class PluginDataService
                 
                 if (!_redis.HasFailed)
                 {
-                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
-                    if (dlCount.HasValue)
+                    var result = await _redis.RunFallibleAsync(async s => (await s.GetCount(manifest.InternalName), await s.GetEndCount(manifest.InternalName)));
+                    if (result is var (dlCount, endCount))
                     {
-                        manifest.DownloadCount = dlCount.Value;
+                        manifest.DownloadCount = dlCount;
+                        manifest.EndorsementCount = endCount;
                     }
                 }
 
