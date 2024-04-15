@@ -138,6 +138,13 @@ public class DalamudReleaseDataService
                     continue;
                 }
             }
+            
+            // Skip releases that aren't applicable. Ideally XL should see this and request stable instead, but here we are.
+            if (!tempRelease.IsApplicableForCurrentGameVer.GetValueOrDefault(true))
+            {
+                logger.LogInformation("Skipping {Track} as it's not applicable for current game version", content.Name);
+                continue;
+            }
 
             releasesDict.Add(content.Name, tempRelease);
         }
