@@ -8,7 +8,7 @@ public class PluginVersion
     public Guid Id { get; set; }
     
     public Plugin Plugin { get; set; }
-    public string Version { get; set; }
+    public Version Version { get; set; }
     public string Dip17Track { get; set; }
     public string? Changelog { get; set; }
     public DateTime PublishedAt { get; set; }

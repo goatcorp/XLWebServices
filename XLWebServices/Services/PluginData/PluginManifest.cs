@@ -66,6 +66,12 @@ public class PluginManifest
     /// </summary>
     [JsonPropertyName("Changelog")]
     public string? Changelog { get; set; }
+    
+    /// <summary>
+    ///     Gets a changelog for the current testing version, if applicable.
+    /// </summary>
+    [JsonPropertyName("TestingChangelog")]
+    public string? TestingChangelog { get; set; }
 
     /// <summary>
     ///     Gets a list of tags defined on the plugin.

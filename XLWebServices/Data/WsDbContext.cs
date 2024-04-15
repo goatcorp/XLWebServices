@@ -25,5 +25,11 @@ public class WsDbContext : DbContext
             .WithOne(e => e.Plugin)
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<PluginVersion>()
+            .Property(x => x.Version)
+            .HasConversion(
+                v => v.ToString(),
+                v => Version.Parse(v));
     }
 }

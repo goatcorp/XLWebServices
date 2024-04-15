@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Discord;
 using Microsoft.AspNetCore.Mvc;
+using Sentry;
 using XLWebServices.Data;
 using XLWebServices.Data.Models;
 using XLWebServices.Services;
@@ -247,11 +248,14 @@ public class PlogonController : ControllerBase
                 var dbPlugin  = db.Plugins.FirstOrDefault(x => x.InternalName == pluginInfo.InternalName);
                 if (dbPlugin != null)
                 {
+                    if (!Version.TryParse(pluginInfo.Version, out var versionNum))
+                        throw new Exception($"Could not parse plugin version ({pluginInfo.Version}");
+                    
                     var version = new PluginVersion
                     {
                         Plugin = dbPlugin,
                         Dip17Track = pluginInfo.Dip17Track,
-                        Version = pluginInfo.Version,
+                        Version = versionNum,
                         PrNumber = pluginInfo.PrNumber,
                         Changelog = pluginInfo.Changelog,
                         PublishedAt = DateTime.Now,
@@ -272,7 +276,7 @@ public class PlogonController : ControllerBase
                 // Send discord notification
                 if (pluginInfo.Changelog == null || !shallExplicitlyHideChangelog)
                 {
-                    var isOtherRepo = pluginInfo.Dip17Track != Dip17SystemDefine.MainTrack;
+                    var isOtherRepo = pluginInfo.Dip17Track != Dip17SystemDefine.StableTrack;
                     
                     var embed = new EmbedBuilder()
                         .WithTitle($"{manifest.Name} (v{pluginInfo.Version})")
@@ -286,12 +290,14 @@ public class PlogonController : ControllerBase
             }
 
             await db.SaveChangesAsync(token);
+            await data.PostProcessD17Masters();
 
             _logger.LogInformation("Committed {NumPlogons} in {Secs}s", staged.Count, stopwatch.Elapsed.TotalSeconds);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not process plogon commit job");
+            SentrySdk.CaptureException(ex);
         }
     }
 

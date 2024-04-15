@@ -1,6 +1,5 @@
+using System.Diagnostics;
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Threading.Channels;
 using Octokit;
 using Tomlyn;
 using XLWebServices.Data;
@@ -19,12 +18,11 @@ public class PluginDataService
 
     private readonly HttpClient _client;
 
+    // All plugins
     public IReadOnlyList<PluginManifest>? PluginMaster { get; private set; }
-    //public IReadOnlyList<PluginManifest>? PluginMasterNoProxy { get; private set; }
-    
-    public IReadOnlyDictionary<string, List<PluginManifest>> PluginMastersDip17 { get; private set; }
 
-    public string RepoSha { get; private set; }
+    // Per track
+    public IReadOnlyDictionary<string, List<PluginManifest>> PluginMastersDip17 { get; private set; }
     
     public string RepoShaDip17 { get; private set; }
 
@@ -54,119 +52,26 @@ public class PluginDataService
 
         try
         {
-            var repoOwner = _configuration["GitHub:PluginRepository:Owner"];
-            var repoName = _configuration["GitHub:PluginRepository:Name"];
-            var apiLevel = _configuration["ApiLevel"];
-
-            var commit = await _github.Client.Repository.Commit.Get(repoOwner, repoName, _configuration["PluginRepoBranch"]);
-            var sha = commit.Sha;
-
-            var downloadTemplate = _configuration["TemplateDownload"];
-            var updateTemplate = _configuration["TemplateUpdate"];
-
+            /*
             var bannedPlugins =
                 await _client.GetFromJsonAsync<BannedPlugin[]>(_configuration["BannedPlugin"]);
             if (bannedPlugins == null)
                 throw new Exception("Failed to load banned plugins");
-
-            var pluginsDir =
-                await _github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, "plugins/", sha);
-            var testingDir =
-                await _github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, "testing/", sha);
+            */
 
             var pluginMaster = new List<PluginManifest>();
 
             var d17 = await ClearCacheD17(pluginMaster);
             
-            foreach (var repositoryContent in pluginsDir)
-            {
-                if (pluginMaster.Any(x => x.InternalName == repositoryContent.Name))
-                    continue;
-                
-                var manifest = await this.GetManifest(repoOwner, repoName, "plugins", repositoryContent.Name, sha);
-                if (manifest == null)
-                    throw new Exception($"Could not fetch manifest for release plugin: {repositoryContent.Name}");
-
-                var banned = bannedPlugins.LastOrDefault(x => x.Name == manifest.InternalName);
-                var isHide = banned != null && manifest.AssemblyVersion <= banned.AssemblyVersion ||
-                             manifest.DalamudApiLevel.ToString() != apiLevel;
-                manifest.IsHide = isHide;
-
-                var testingVersion = testingDir.FirstOrDefault(x => x.Name == repositoryContent.Name);
-                if (testingVersion != null)
-                {
-                    var testingManifest = await this.GetManifest(repoOwner, repoName, "testing", repositoryContent.Name, sha);
-                    if (testingManifest == null)
-                        throw new Exception(
-                            $"Plugin had testing version, but could not fetch manifest: {repositoryContent.Name}");
-
-                    manifest.TestingAssemblyVersion = testingManifest.AssemblyVersion;
-                }
-
-                manifest.IsTestingExclusive = false;
-
-                var (lastUpdate, changelog) = await this.GetPluginInfo(manifest, repositoryContent, repoOwner, repoName);
-                manifest.LastUpdate = lastUpdate;
-                manifest.Changelog = changelog;
-
-                if (!_redis.HasFailed)
-                {
-                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
-                    if (dlCount.HasValue)
-                    {
-                        manifest.DownloadCount = dlCount.Value;
-                    }
-                }
-                
-                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
-                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, false);
-                manifest.DownloadLinkUpdate = string.Format(updateTemplate, "plugins", manifest.InternalName, apiLevel);
-                
-                pluginMaster.Add(manifest);
-            }
-
-            foreach (var repositoryContent in testingDir)
-            {
-                if (pluginMaster.Any(x => x.InternalName == repositoryContent.Name))
-                    continue;
-                
-                var manifest = await this.GetManifest(repoOwner, repoName, "testing", repositoryContent.Name, sha);
-                if (manifest == null)
-                    throw new Exception($"Could not fetch manifest for testing plugin: {repositoryContent.Name}");
-
-                manifest.TestingAssemblyVersion = manifest.AssemblyVersion;
-                manifest.IsTestingExclusive = true;
-
-                var (lastUpdate, changelog) = await this.GetPluginInfo(manifest, repositoryContent, repoOwner, repoName);
-                manifest.LastUpdate = lastUpdate;
-                manifest.Changelog = changelog;
-
-                if (!_redis.HasFailed)
-                {
-                    var dlCount = await _redis.RunFallibleAsync(s => s.GetCount(manifest.InternalName));
-                    if (dlCount.HasValue)
-                    {
-                        manifest.DownloadCount = dlCount.Value;
-                    }
-                }
-
-                manifest.DownloadLinkInstall = string.Format(downloadTemplate, manifest.InternalName, false, apiLevel, false);
-                manifest.DownloadLinkTesting = string.Format(downloadTemplate, manifest.InternalName, true, apiLevel, false);
-                manifest.DownloadLinkUpdate = string.Format(updateTemplate, manifest.InternalName, "plugins", apiLevel);
-                
-                pluginMaster.Add(manifest);
-            }
-
             PluginMaster = pluginMaster;
             PluginMastersDip17 = d17.Manifests;
-            RepoSha = sha;
             RepoShaDip17 = d17.Sha;
             LastUpdate = DateTime.Now;
             
-            EnsureDatabaseConsistent();
+            await EnsureDatabaseConsistent();
 
             _logger.LogInformation("Plugin list updated, {Count} plugins found", this.PluginMaster.Count);
-            await _discord.AdminSendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA: {sha}\nSHA(D17): {RepoShaDip17}",
+            await _discord.AdminSendSuccess($"Plugin list updated, {this.PluginMaster.Count} plugins loaded\nSHA(D17): {RepoShaDip17}",
                 "PluginMaster updated");
         }
         catch (Exception e)
@@ -177,7 +82,43 @@ public class PluginDataService
         }
     }
 
-    public async Task<(Dictionary<string, List<PluginManifest>> Manifests, string Sha)> ClearCacheD17(List<PluginManifest> pluginMaster)
+    public async Task PostProcessD17Masters()
+    {
+        Debug.Assert(PluginMaster != null);
+        Debug.Assert(PluginMastersDip17 != null);
+
+        // Patch changelogs into the "main" PluginMaster that has normal and testing versions.
+        // This is the only manifest that will have testing changelogs.
+        // I don't think this approach scales but I don't care.
+        foreach (var plugin in PluginMaster)
+        {
+            var versionStable = _dbContext.PluginVersions
+                .OrderByDescending(x => x.PublishedAt)
+                .FirstOrDefault(x => x.Version == plugin.AssemblyVersion && 
+                                     x.Dip17Track == Dip17SystemDefine.StableTrack);
+            var versionTesting = _dbContext.PluginVersions
+                .OrderByDescending(x => x.PublishedAt)
+                .FirstOrDefault(x => x.Version == plugin.AssemblyVersion && 
+                                     x.Dip17Track != Dip17SystemDefine.StableTrack);
+            
+            plugin.Changelog = versionStable?.Changelog;
+            plugin.TestingChangelog = versionTesting?.Changelog;
+        }
+        
+        // Patch changelogs into individual tracks. These only have the main changelog appropriate for the track.
+        foreach (var track in PluginMastersDip17)
+        foreach (var plugin in track.Value)
+        {
+            var version = _dbContext.PluginVersions
+                .OrderByDescending(x => x.PublishedAt)
+                .FirstOrDefault(x => x.Version == plugin.AssemblyVersion && 
+                                     x.Dip17Track == track.Key);
+            
+            plugin.Changelog = version?.Changelog;
+        }
+    }
+
+    private async Task<(Dictionary<string, List<PluginManifest>> Manifests, string Sha)> ClearCacheD17(List<PluginManifest> pluginMaster)
     {
         var repoOwner = _configuration["GitHub:PluginDistD17:Owner"];
         var repoName = _configuration["GitHub:PluginDistD17:Name"];
@@ -219,6 +160,9 @@ public class PluginDataService
                              manifest.DalamudApiLevel != apiLevel;
                 manifest.IsHide = isHide;
                 
+                // This is NECESSARY here for changelog fallback logic.
+                // PlogonController.BuildCommitWorkItemAsync() will take this value and use it as the
+                // committed changelog for the plugin if the PR description does not apply.
                 manifest.Changelog =
                     pluginState.Changelogs?.FirstOrDefault(x => x.Key == manifest.AssemblyVersion.ToString()).Value?.Changelog;
                 manifest.LastUpdate = ((DateTimeOffset)pluginState.TimeBuilt).ToUnixTimeSeconds();

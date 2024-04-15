@@ -41,7 +41,10 @@ public class PluginController : ControllerBase
     }
 
     [HttpGet("{internalName}")]
-    public async Task<IActionResult> Download(string internalName, [FromQuery(Name = "isTesting")] bool isTesting = false, [FromQuery(Name = "isDip17")] bool isDip17 = false)
+    public async Task<IActionResult> Download(string internalName,
+        [FromQuery(Name = "isTesting")] bool isTesting = false,
+        [FromQuery(Name = "isUpdate")] bool isUpdate = false,
+        [FromQuery(Name = "isDip17")] bool isDip17 = false)
     {
         if (this.pluginData.HasFailed&& this.pluginData.Get()?.PluginMaster == null)
             return StatusCode(500, "Precondition failed");
@@ -52,34 +55,27 @@ public class PluginController : ControllerBase
         if (manifest == null)
             return BadRequest("Invalid plugin");
 
-        DownloadsOverTime.WithLabels(internalName.ToLower(), isTesting.ToString()).Inc();
-
-        if (!this.redis.HasFailed)
+        if (!isUpdate)
         {
-            await this.redis.Get()!.IncrementCount(internalName);
-            await this.redis.Get()!.IncrementCount(RedisCumulativeKey);
+            DownloadsOverTime.WithLabels(internalName.ToLower(), isTesting.ToString()).Inc();
+
+            if (!this.redis.HasFailed)
+            {
+                await this.redis.Get()!.IncrementCount(internalName);
+                await this.redis.Get()!.IncrementCount(RedisCumulativeKey);
+            }
         }
         
-        if (isDip17)
-        {
-            const string githubPath = "https://raw.githubusercontent.com/goatcorp/PluginDistD17/{0}/{1}/{2}/latest.zip";
-            var folder = isTesting ? "testing-live" : "stable";
-            var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.Get()!.RepoShaDip17}",
-                string.Format(githubPath, this.pluginData.Get()!.RepoShaDip17, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+        if (!isDip17)
+            return BadRequest("Legacy plugin downloads are no longer available");
 
-            return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
-        }
-        else
-        {
-            const string githubPath = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/{0}/{1}/{2}/latest.zip";
-            var folder = isTesting ? "testing" : "plugins";
-            var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
-            var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.Get()!.RepoSha}",
-                string.Format(githubPath, this.pluginData.Get()!.RepoSha, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
+        const string githubPath = "https://raw.githubusercontent.com/goatcorp/PluginDistD17/{0}/{1}/{2}/latest.zip";
+        var folder = isTesting ? "testing-live" : "stable";
+        var version = isTesting && manifest.TestingAssemblyVersion != null ? manifest.TestingAssemblyVersion : manifest.AssemblyVersion;
+        var cachedFile = await this.cache.CacheFile(internalName, $"{version}-{folder}-{this.pluginData.Get()!.RepoShaDip17}",
+            string.Format(githubPath, this.pluginData.Get()!.RepoShaDip17, folder, internalName), FileCacheService.CachedFile.FileCategory.Plugin);
 
-            return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
-        }
+        return new RedirectResult($"{this.configuration["HostedUrl"]}/File/Get/{cachedFile.Id}");
     }
     
     [HttpGet]
@@ -115,7 +111,9 @@ public class PluginController : ControllerBase
             pluginMaster = this.pluginData.Get()!.PluginMaster;
         }
 
-        pluginMaster ??= Array.Empty<PluginManifest>();
+        if (pluginMaster == null)
+            return StatusCode(500, "No plugin data");
+        
         if (minApiLevel > 0)
         {
             pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minApiLevel).ToArray();
@@ -160,7 +158,7 @@ public class PluginController : ControllerBase
         
         if (string.IsNullOrEmpty(dip17Track))
         {
-            dip17Track = Dip17SystemDefine.MainTrack;
+            dip17Track = Dip17SystemDefine.StableTrack;
         }
         
         var dbPlugin = _dbContext.Plugins.Include(x => x.VersionHistory).FirstOrDefault(x => x.InternalName == internalName);
@@ -202,7 +200,6 @@ public class PluginController : ControllerBase
             NumPlugins = this.pluginData.Get()!.PluginMaster!.Count,
             LastUpdate = this.pluginData.Get()!.LastUpdate,
             CumulativeDownloads = await this.redis.Get()!.GetCount(RedisCumulativeKey),
-            Sha = this.pluginData.Get()!.RepoSha,
             Dip17Sha = this.pluginData.Get()!.RepoShaDip17,
         });
     }
@@ -212,7 +209,6 @@ public class PluginController : ControllerBase
         public int NumPlugins { get; init; }
         public long CumulativeDownloads { get; init; }
         public DateTime LastUpdate { get; init; }
-        public string Sha { get; init; }
         public string Dip17Sha { get; init; }
     }
 }
