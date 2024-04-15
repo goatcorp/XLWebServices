@@ -7,6 +7,7 @@ namespace XLWebServices.Controllers;
 
 [ApiController]
 [Route("Launcher/[action]")]
+[TypeFilter(typeof(LauncherReleaseDataService.LauncherReleaseDataAvailabilityFilter), IsReusable = true)]
 public class LauncherController : ControllerBase
 {
     private readonly ILogger<GitHubProxyController> _logger;

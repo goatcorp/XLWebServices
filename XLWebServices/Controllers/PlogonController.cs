@@ -91,6 +91,9 @@ public class PlogonController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CommitStagedPlugins()
     {
+        if (_data.HasFailed || !_data.Get()!.HasInitialData)
+            return StatusCode(500, "Precondition failed");
+        
         if (!CheckAuthHeader())
             return Unauthorized();
         

@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Prometheus;
 using XLWebServices.Data;
@@ -13,6 +14,8 @@ namespace XLWebServices.Controllers;
 [ApiController]
 [EnableCors("GithubAccess")]
 [Route("[controller]/[action]")]
+[TypeFilter(typeof(PluginDataService.PluginDataAvailabilityFilter), IsReusable = true)]
+[TypeFilter(typeof(DalamudReleaseDataService.DalamudReleaseDataAvailabilityFilter), IsReusable = true)]
 public class PluginController : ControllerBase
 {
     private readonly ILogger<PluginController> logger;

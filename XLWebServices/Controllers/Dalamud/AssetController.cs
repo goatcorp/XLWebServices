@@ -5,6 +5,7 @@ namespace XLWebServices.Controllers;
 
 [ApiController]
 [Route("Dalamud/Asset/[action]")]
+[TypeFilter(typeof(AssetCacheService.AssetCacheAvailabilityFilter), IsReusable = true)]
 public class AssetController : ControllerBase
 {
     private readonly FallibleService<AssetCacheService> assetCache;

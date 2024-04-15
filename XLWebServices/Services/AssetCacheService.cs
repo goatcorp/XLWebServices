@@ -1,12 +1,32 @@
-using System.Net.Http.Headers;
-using Newtonsoft.Json;
-using Octokit;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace XLWebServices.Services;
 
 public class AssetCacheService
 {
+    public class AssetCacheAvailabilityFilter : IAsyncActionFilter
+    {
+        private readonly FallibleService<AssetCacheService> _assetCache;
+
+        public AssetCacheAvailabilityFilter(FallibleService<AssetCacheService> assetCache)
+        {
+            _assetCache = assetCache;
+        }
+
+        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        {
+            if (_assetCache.HasFailed || _assetCache.Get()?.Assets == null)
+            {
+                context.Result = new StatusCodeResult(503);
+                return;
+            }
+
+            await next();
+        }
+    }
+    
     private readonly IConfiguration config;
     private readonly FileCacheService cache;
     private readonly GitHubService github;

@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using LibGit2Sharp;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Octokit;
 using Repository = LibGit2Sharp.Repository;
 
@@ -8,6 +10,27 @@ namespace XLWebServices.Services;
 
 public class LauncherReleaseDataService
 {
+    public class LauncherReleaseDataAvailabilityFilter : IAsyncActionFilter
+    {
+        private readonly FallibleService<LauncherReleaseDataService> _launcherReleaseData;
+        
+        public LauncherReleaseDataAvailabilityFilter(FallibleService<LauncherReleaseDataService> launcherReleaseData)
+        {
+            _launcherReleaseData = launcherReleaseData;
+        }
+        
+        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        {
+            if (_launcherReleaseData.HasFailed || this._launcherReleaseData.Get()?.CachedReleasesList == null)
+            {
+                context.Result = new StatusCodeResult(503);
+                return;
+            }
+
+            await next();
+        }
+    }
+    
     private readonly ILogger<LauncherReleaseDataService> _logger;
     private readonly GitHubService _github;
     private readonly IConfiguration _configuration;

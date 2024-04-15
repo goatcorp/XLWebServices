@@ -2,6 +2,8 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Octokit;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -10,6 +12,27 @@ namespace XLWebServices.Services;
 
 public class DalamudReleaseDataService
 {
+    public class DalamudReleaseDataAvailabilityFilter : IAsyncActionFilter
+    {
+        private readonly FallibleService<DalamudReleaseDataService> _dalamudReleaseData;
+        
+        public DalamudReleaseDataAvailabilityFilter(FallibleService<DalamudReleaseDataService> dalamudReleaseData)
+        {
+            _dalamudReleaseData = dalamudReleaseData;
+        }
+        
+        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        {
+            if (_dalamudReleaseData.HasFailed || _dalamudReleaseData.Get()?.DalamudVersions == null)
+            {
+                context.Result = new StatusCodeResult(503);
+                return;
+            }
+
+            await next();
+        }
+    }
+    
     private readonly IConfiguration config;
     private readonly FileCacheService cache;
     private readonly ILogger<DalamudReleaseDataService> logger;

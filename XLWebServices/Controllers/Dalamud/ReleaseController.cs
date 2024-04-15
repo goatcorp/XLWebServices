@@ -10,6 +10,7 @@ namespace XLWebServices.Controllers;
 [ApiController]
 [EnableCors("GithubAccess")]
 [Route("Dalamud/Release/[action]")]
+[TypeFilter(typeof(DalamudReleaseDataService.DalamudReleaseDataAvailabilityFilter), IsReusable = true)]
 public class ReleaseController : ControllerBase
 {
     private readonly FallibleService<DalamudReleaseDataService> releaseCache;

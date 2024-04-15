@@ -8,6 +8,7 @@ namespace XLWebServices.Controllers;
 
 [ApiController]
 [Route("Proxy/[action]")]
+[TypeFilter(typeof(LauncherReleaseDataService.LauncherReleaseDataAvailabilityFilter), IsReusable = true)]
 public class GitHubProxyController: ControllerBase
 {
     private readonly ILogger<GitHubProxyController> _logger;

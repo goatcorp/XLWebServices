@@ -108,17 +108,36 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Services.GetRequiredService<GitHubService>();
+var queue = app.Services.GetRequiredService<IBackgroundTaskQueue>();
 
-var acs = app.Services.GetRequiredService<FallibleService<AssetCacheService>>();
-await acs.RunFallibleAsync(s => s.ClearCache());
+_ = Task.Run(async () =>
+{
+    await queue.QueueBackgroundWorkItemAsync(async (_, _) =>
+    {
+        var rds = app.Services.GetRequiredService<FallibleService<LauncherReleaseDataService>>();
+        await rds.RunFallibleAsync(s => s.ClearCache());
+    });
+    
+    await queue.QueueBackgroundWorkItemAsync(async (_, _) =>
+    {
+        var acs = app.Services.GetRequiredService<FallibleService<AssetCacheService>>();
+        await acs.RunFallibleAsync(s => s.ClearCache());
+    });
 
-var drs = app.Services.GetRequiredService<FallibleService<DalamudReleaseDataService>>();
-await drs.RunFallibleAsync(s => s.ClearCache());
+    await queue.QueueBackgroundWorkItemAsync(async (_, _) =>
+    {
+        var drs = app.Services.GetRequiredService<FallibleService<DalamudReleaseDataService>>();
+        await drs.RunFallibleAsync(s => s.ClearCache());
+    });
 
-var pds = app.Services.GetRequiredService<FallibleService<PluginDataService>>();
-await pds.RunFallibleAsync(s => s.ClearCache());
-
-var rds = app.Services.GetRequiredService<FallibleService<LauncherReleaseDataService>>();
-await rds.RunFallibleAsync(s => s.ClearCache());
+    await queue.QueueBackgroundWorkItemAsync(async (_, _) =>
+    {
+        var pds = app.Services.GetRequiredService<FallibleService<PluginDataService>>();
+        await pds.RunFallibleAsync(s => s.ClearCache());
+        await pds.RunFallibleAsync(s => s.PostProcessD17Masters());
+    });
+    
+    logger.LogInformation("Queued cache clear jobs");
+});
 
 app.Run();

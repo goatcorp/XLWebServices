@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Octokit;
 using Tomlyn;
 using XLWebServices.Data;
@@ -9,6 +11,27 @@ namespace XLWebServices.Services.PluginData;
 
 public class PluginDataService
 {
+    public class PluginDataAvailabilityFilter : IAsyncActionFilter
+    {
+        private readonly FallibleService<PluginDataService> _pluginData;
+
+        public PluginDataAvailabilityFilter(FallibleService<PluginDataService> pluginData)
+        {
+            _pluginData = pluginData;
+        }
+
+        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        {
+            if (_pluginData.HasFailed || !_pluginData.Get()!.HasInitialData)
+            {
+                context.Result = new StatusCodeResult(503);
+                return;
+            }
+
+            await next();
+        }
+    }
+    
     private readonly ILogger<PluginDataService> _logger;
     private readonly GitHubService _github;
     private readonly IConfiguration _configuration;
@@ -27,6 +50,8 @@ public class PluginDataService
     public string RepoShaDip17 { get; private set; }
 
     public DateTime LastUpdate { get; private set; }
+
+    public bool HasInitialData { get; private set; } = false;
 
     public PluginDataService(
         ILogger<PluginDataService> logger,
@@ -116,6 +141,8 @@ public class PluginDataService
             
             plugin.Changelog = version?.Changelog;
         }
+
+        HasInitialData = true;
     }
 
     private async Task<(Dictionary<string, List<PluginManifest>> Manifests, string Sha)> ClearCacheD17(List<PluginManifest> pluginMaster)
