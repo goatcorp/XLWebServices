@@ -17,7 +17,7 @@ public class AssetCacheService
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (_assetCache.HasFailed || _assetCache.Get()?.Assets == null)
+            if (_assetCache.HasFailed || _assetCache.Get()?.Response == null)
             {
                 context.Result = new StatusCodeResult(503);
                 return;

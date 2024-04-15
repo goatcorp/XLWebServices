@@ -39,9 +39,6 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control")
     {
-        if (this.releaseCache.HasFailed && this.releaseCache.Get()?.DalamudVersions == null)
-            return StatusCode(500, "Precondition failed");
-        
         if (string.IsNullOrEmpty(track))
             track = "release";
 
@@ -80,27 +77,18 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult Meta()
     {
-        if (this.releaseCache.HasFailed && this.releaseCache.Get()?.DalamudVersions == null)
-            return StatusCode(500, "Precondition failed");
-        
         return new JsonResult(this.releaseCache.Get()!.DalamudVersions);
     }
     
     [HttpGet]
     public IActionResult Changelog()
     {
-        if (this.releaseCache.HasFailed)
-            return StatusCode(500, "Precondition failed");
-        
         return new JsonResult(this.releaseCache.Get()!.DalamudChangelogs);
     }
 
     [HttpGet("{kind}/{version}")]
     public async Task<IActionResult> Runtime(string version, string kind)
     {
-        if (this.releaseCache.HasFailed && this.releaseCache.Get()?.DalamudVersions == null)
-            return StatusCode(500, "Precondition failed");
-        
         if (this.releaseCache.Get()!.DalamudVersions.All(x => x.Value.RuntimeVersion != version) && version != "5.0.6")
             return this.BadRequest("Invalid version");
 
@@ -154,7 +142,7 @@ public class ReleaseController : ControllerBase
     
     private async ValueTask BuildClearCacheWorkItemAsync(CancellationToken token, IServiceProvider _)
     {
-        _logger.LogInformation("Queued plogon commit is starting");
+        _logger.LogInformation("Queued Dalamud release refresh is starting");
         var stopwatch = new Stopwatch();
         stopwatch.Start();
 

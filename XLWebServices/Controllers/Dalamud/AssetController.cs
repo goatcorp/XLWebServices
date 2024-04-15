@@ -20,9 +20,6 @@ public class AssetController : ControllerBase
     [HttpGet]
     public IActionResult Meta()
     {
-        if (this.assetCache.HasFailed && this.assetCache.Get()?.Response == null)
-            return StatusCode(500, "Precondition failed");
-
         return new JsonResult(this.assetCache.Get()!.Response);
     }
 

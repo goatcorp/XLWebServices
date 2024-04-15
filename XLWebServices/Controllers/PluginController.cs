@@ -49,9 +49,6 @@ public class PluginController : ControllerBase
         [FromQuery(Name = "isUpdate")] bool isUpdate = false,
         [FromQuery(Name = "isDip17")] bool isDip17 = false)
     {
-        if (this.pluginData.HasFailed&& this.pluginData.Get()?.PluginMaster == null)
-            return StatusCode(500, "Precondition failed");
-        
         var masterList = this.pluginData.Get()!.PluginMaster;
 
         var manifest = masterList!.FirstOrDefault(x => x.InternalName == internalName);
@@ -84,9 +81,6 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> DownloadCounts()
     {
-        if (this.pluginData.HasFailed || this.redis.HasFailed)
-            return StatusCode(500, "Precondition failed");
-        
         var counts = new Dictionary<string, long>();
         foreach (var plugin in this.pluginData.Get()!.PluginMaster!)
         {
@@ -99,9 +93,6 @@ public class PluginController : ControllerBase
     [HttpGet]
     public IActionResult PluginMaster([FromQuery] bool proxy = true, [FromQuery] int minApiLevel = 0, [FromQuery(Name = "track")] string? dip17Track = null)
     {
-        if (this.pluginData.HasFailed && this.pluginData.Get()?.PluginMaster == null)
-            return StatusCode(500, "Precondition failed");
-
         IReadOnlyList<PluginManifest>? pluginMaster;
         if (!string.IsNullOrEmpty(dip17Track))
         {
@@ -128,9 +119,6 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public IActionResult Plugin(string internalName, [FromQuery(Name = "track")] string? dip17Track = null)
     {
-        if (this.pluginData.HasFailed)
-            return StatusCode(500, "Precondition failed");
-
         var master = this.pluginData.Get()!.PluginMaster;
         
         if (!string.IsNullOrEmpty(dip17Track))
@@ -156,9 +144,6 @@ public class PluginController : ControllerBase
     [HttpGet("{internalName}")]
     public IActionResult History(string internalName, [FromQuery(Name = "track")] string? dip17Track = null)
     {
-        if (this.pluginData.HasFailed)
-            return StatusCode(500, "Precondition failed");
-        
         if (string.IsNullOrEmpty(dip17Track))
         {
             dip17Track = Dip17SystemDefine.StableTrack;
@@ -195,9 +180,6 @@ public class PluginController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Meta()
     {
-        if (this.pluginData.HasFailed || this.redis.HasFailed)
-            return StatusCode(500, "Precondition failed");
-        
         return new JsonResult(new PluginMeta
         {
             NumPlugins = this.pluginData.Get()!.PluginMaster!.Count,

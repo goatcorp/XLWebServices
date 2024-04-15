@@ -46,9 +46,6 @@ public class GitHubProxyController: ControllerBase
     [HttpGet("{track:alpha}/{file}")]
     public async Task<IActionResult> Update(string file, string track, string? localVersion = null)
     {
-        if (_launcherReleaseData.HasFailed && this._launcherReleaseData.Get()?.CachedReleasesList == null)
-            return StatusCode(500, "Precondition failed");
-
         if (_isCanaryEnabled)
         {
             if (Request.Headers.TryGetValue("cf-ray", out var ray))
