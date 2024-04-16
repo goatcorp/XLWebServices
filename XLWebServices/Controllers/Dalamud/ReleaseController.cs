@@ -67,22 +67,22 @@ public class ReleaseController : ControllerBase
             {
                 DownloadsOverTime.WithLabels(appId, bucket == "Canary" ? "Canary" : "Control").Inc();
 
-                if (bucket == "Canary" && this.releaseCache.Get()!.DalamudVersions.ContainsKey("canary") && isUseCanary)
+                if (bucket == "Canary" && releases.DalamudVersions.ContainsKey("canary") && isUseCanary)
                 {
-                    resultVersion = this.releaseCache.Get()!.DalamudVersions["canary"];
+                    resultVersion = releases.DalamudVersions["canary"];
                 }
                 else
                 {
-                    resultVersion = this.releaseCache.Get()!.DalamudVersions["release"];
+                    resultVersion = releases.DalamudVersions["release"];
                 }
             }
                 break;
 
             default:
             {
-                if (!this.releaseCache.Get()!.DalamudVersions.TryGetValue(track, out resultVersion))
+                if (!releases.DalamudVersions.TryGetValue(track, out resultVersion))
                 {
-                    resultVersion = this.releaseCache.Get()!.DalamudVersions["release"];
+                    resultVersion = releases.DalamudVersions["release"];
                     track = "release"; // Normalize track name for stat counting
                 }
 
