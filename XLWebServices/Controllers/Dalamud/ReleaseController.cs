@@ -39,6 +39,8 @@ public class ReleaseController : ControllerBase
     [HttpGet]
     public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control")
     {
+        var releases = this.releaseCache.Get()!;
+        
         if (string.IsNullOrEmpty(track))
             track = "release";
 
@@ -51,27 +53,49 @@ public class ReleaseController : ControllerBase
         if (appId != "goat" && appId != "xom" && appId != "helpy")
             return BadRequest("Invalid appId");
 
+        string? keyOverride = null;
+        if (releases.DeclarativeAliases.TryGetValue(track, out var aliasTrack))
+        {
+            track = aliasTrack;
+            keyOverride = releases.DalamudVersions[track].Key;
+        }
+        
+        DalamudReleaseDataService.DalamudVersion? resultVersion = null;
         switch (track)
         {
             case "release":
             {
                 DownloadsOverTime.WithLabels(appId, bucket == "Canary" ? "Canary" : "Control").Inc();
-                
+
                 if (bucket == "Canary" && this.releaseCache.Get()!.DalamudVersions.ContainsKey("canary") && isUseCanary)
-                    return new JsonResult(this.releaseCache.Get()!.DalamudVersions["canary"]);
-                
-                return new JsonResult(this.releaseCache.Get()!.DalamudVersions["release"]);
+                {
+                    resultVersion = this.releaseCache.Get()!.DalamudVersions["canary"];
+                }
+                else
+                {
+                    resultVersion = this.releaseCache.Get()!.DalamudVersions["release"];
+                }
             }
+                break;
 
             default:
             {
-                if (!this.releaseCache.Get()!.DalamudVersions.TryGetValue(track, out var release))
-                    return new JsonResult(this.releaseCache.Get()!.DalamudVersions["release"]);
+                if (!this.releaseCache.Get()!.DalamudVersions.TryGetValue(track, out resultVersion))
+                {
+                    resultVersion = this.releaseCache.Get()!.DalamudVersions["release"];
+                    track = "release"; // Normalize track name for stat counting
+                }
 
                 DownloadsOverTime.WithLabels(appId, track).Inc();
-                return new JsonResult(release);
             }
+                break;
         }
+
+        // Patch in the key of the aliased version
+        if (keyOverride != null)
+            resultVersion.Key = keyOverride;
+
+        return new JsonResult(resultVersion);
     }
 
     [HttpGet]

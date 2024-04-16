@@ -23,7 +23,10 @@ public class DalamudReleaseDataService
         
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (_dalamudReleaseData.HasFailed || _dalamudReleaseData.Get()?.DalamudVersions == null)
+            if (_dalamudReleaseData.HasFailed ||
+                _dalamudReleaseData.Get()?.DalamudVersions == null ||
+                _dalamudReleaseData.Get()?.DalamudChangelogs == null ||
+                _dalamudReleaseData.Get()?.DeclarativeAliases == null)
             {
                 context.Result = new StatusCodeResult(503);
                 return;
@@ -44,6 +47,8 @@ public class DalamudReleaseDataService
 
     public IReadOnlyDictionary<string, DalamudVersion> DalamudVersions { get; private set; }
 
+    public IReadOnlyDictionary<string, string> DeclarativeAliases { get; private set; }
+    
     public DalamudReleaseDataService(IConfiguration config, FileCacheService cache,
         ILogger<DalamudReleaseDataService> logger, GitHubService github, DiscordHookService discord,
         ConfigMasterService configMaster)
@@ -83,6 +88,11 @@ public class DalamudReleaseDataService
         var declarative = await GetDeclarative(shaDeclarative);
         if (declarative == null)
             throw new Exception("Declarative was null");
+        
+        // Go through declaratives and map aliases
+        this.DeclarativeAliases = declarative.Tracks
+            .Where(track => !string.IsNullOrEmpty(track.Value.Alias))
+            .ToDictionary(track => track.Key, track => track.Value.Alias!);
 
         // Get tree
         var tree = await this.github.Client.Repository.Content.GetAllContentsByRef(repoOwner, repoName, shaDistrib);
@@ -342,6 +352,8 @@ public class DalamudReleaseDataService
             public string ApplicableGameVersion { get; set; } = null!;
 
             public string RuntimeVersion { get; set; } = null!;
+            
+            public string? Alias { get; set; }
         }
 
         public Dictionary<string, DalamudDeclarativeTrack> Tracks { get; set; } = new();
