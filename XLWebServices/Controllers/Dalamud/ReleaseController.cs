@@ -57,7 +57,7 @@ public class ReleaseController : ControllerBase
         if (releases.DeclarativeAliases.TryGetValue(track, out var aliasTrack))
         {
             track = aliasTrack;
-            keyOverride = releases.DalamudVersions[track].Key;
+            keyOverride = releases.DalamudVersions[aliasTrack].Key;
         }
         
         DalamudReleaseDataService.DalamudVersion? resultVersion = null;
@@ -87,6 +87,13 @@ public class ReleaseController : ControllerBase
                 }
 
                 DownloadsOverTime.WithLabels(appId, track).Inc();
+
+                // If the version is not applicable for the current game version, fall back to the release version
+                // Ideally XL should see this and request stable instead, but here we are.
+                if (!resultVersion.IsApplicableForCurrentGameVer.GetValueOrDefault(true))
+                {
+                    resultVersion = releases.DalamudVersions["release"];
+                }
             }
                 break;
         }
