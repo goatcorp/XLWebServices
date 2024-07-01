@@ -56,8 +56,8 @@ public class ReleaseController : ControllerBase
         string? keyOverride = null;
         if (releases.DeclarativeAliases.TryGetValue(track, out var aliasTrack))
         {
+            keyOverride = releases.DalamudVersions[track].Key;
             track = aliasTrack;
-            keyOverride = releases.DalamudVersions[aliasTrack].Key;
         }
         
         DalamudReleaseDataService.DalamudVersion? resultVersion = null;

@@ -88,7 +88,7 @@ public class DalamudReleaseDataService
         var declarative = await GetDeclarative(shaDeclarative);
         if (declarative == null)
             throw new Exception("Declarative was null");
-        
+
         // Go through declaratives and map aliases
         this.DeclarativeAliases = declarative.Tracks
             .Where(track => !string.IsNullOrEmpty(track.Value.Alias))
