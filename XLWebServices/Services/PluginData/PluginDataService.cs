@@ -176,9 +176,12 @@ public class PluginDataService
                 if (manifest == null)
                     throw new Exception($"Could not fetch manifest for DIP17 plugin: {channelName}/{pluginName}");
 
-                if (manifest.DalamudApiLevel < apiLevel - 2)
+                if (Math.Max(manifest.DalamudApiLevel, manifest.TestingDalamudApiLevel) < apiLevel - 2)
                 {
-                    _logger.LogInformation("{PluginName} too old, api{Level}", manifest.InternalName, manifest.DalamudApiLevel);
+                    _logger.LogInformation("{PluginName} too old, api{Level} (testing: api{TestingLevel})",
+                        manifest.InternalName,
+                        manifest.DalamudApiLevel,
+                        manifest.TestingDalamudApiLevel);
                     continue;
                 }
                 
@@ -228,6 +231,7 @@ public class PluginDataService
                     if (stableVersion != null)
                     {
                         stableVersion.TestingAssemblyVersion = manifest.AssemblyVersion;
+                        stableVersion.TestingDalamudApiLevel = manifest.DalamudApiLevel;
                         stableVersion.IsTestingExclusive = false;
                         stableVersion.IsDip17Plugin = true;
                         stableVersion.Dip17Channel = channelName;
@@ -235,6 +239,7 @@ public class PluginDataService
                     else
                     {
                         manifest.TestingAssemblyVersion = manifest.AssemblyVersion;
+                        manifest.TestingDalamudApiLevel = manifest.DalamudApiLevel;
                         manifest.IsTestingExclusive = true;
                         pluginMaster.Add(manifest);
                     }

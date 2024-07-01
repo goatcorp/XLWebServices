@@ -110,7 +110,8 @@ public class PluginController : ControllerBase
         
         if (minApiLevel > 0)
         {
-            pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minApiLevel).ToArray();
+            pluginMaster = pluginMaster.Where(manifest => manifest.DalamudApiLevel >= minApiLevel ||
+                                                          manifest.TestingDalamudApiLevel >= minApiLevel).ToArray();
         }
 
         return Content(JsonSerializer.Serialize(pluginMaster), "application/json");

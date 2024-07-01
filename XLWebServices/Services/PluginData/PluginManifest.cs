@@ -23,6 +23,7 @@ public class PluginManifest
         this.RepoUrl = toCopy.RepoUrl;
         this.ApplicableVersion = toCopy.ApplicableVersion;
         this.DalamudApiLevel = toCopy.DalamudApiLevel;
+        this.TestingDalamudApiLevel = toCopy.TestingDalamudApiLevel;
         this.DownloadCount = toCopy.DownloadCount;
         this.LastUpdate = toCopy.LastUpdate;
         this.DownloadLinkInstall = toCopy.DownloadLinkInstall;
@@ -147,6 +148,14 @@ public class PluginManifest
     /// </summary>
     [JsonPropertyName("DalamudApiLevel")]
     public int DalamudApiLevel { get; set; }
+    
+    /// <summary>
+    ///     Gets the API level of this plugin's testing version. For the current API level, please see
+    ///     <see cref="PluginManager.DalamudApiLevel" />
+    ///     for the currently used API level.
+    /// </summary>
+    [JsonPropertyName("TestingDalamudApiLevel")]
+    public int TestingDalamudApiLevel { get; set; }
 
     /// <summary>
     ///     Gets the number of downloads this plugin has.
