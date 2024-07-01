@@ -100,7 +100,12 @@ public class ReleaseController : ControllerBase
 
         // Patch in the key of the aliased version
         if (keyOverride != null)
-            resultVersion.Key = keyOverride;
+        {
+            resultVersion = new DalamudReleaseDataService.DalamudVersion(resultVersion)
+            {
+                Key = keyOverride
+            };
+        }
 
         return new JsonResult(resultVersion);
     }

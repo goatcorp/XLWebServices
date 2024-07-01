@@ -354,6 +354,23 @@ public class DalamudReleaseDataService
 
     public class DalamudVersion
     {
+        public DalamudVersion(DalamudVersion toCopy)
+        {
+            this.Key = toCopy.Key;
+            this.Track = toCopy.Track;
+            this.AssemblyVersion = toCopy.AssemblyVersion;
+            this.RuntimeVersion = toCopy.RuntimeVersion;
+            this.RuntimeRequired = toCopy.RuntimeRequired;
+            this.SupportedGameVer = toCopy.SupportedGameVer;
+            this.IsApplicableForCurrentGameVer = toCopy.IsApplicableForCurrentGameVer;
+            this.Changelog = toCopy.Changelog;
+            this.DownloadUrl = toCopy.DownloadUrl;
+        }
+
+        public DalamudVersion()
+        {
+        }
+        
         public string Key { get; set; }
 
         public string Track { get; set; }
