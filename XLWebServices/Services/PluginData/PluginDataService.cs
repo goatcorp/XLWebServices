@@ -123,7 +123,7 @@ public class PluginDataService
                                      x.Dip17Track == Dip17SystemDefine.StableTrack);
             var versionTesting = _dbContext.PluginVersions
                 .OrderByDescending(x => x.PublishedAt)
-                .FirstOrDefault(x => x.Version == plugin.AssemblyVersion && 
+                .FirstOrDefault(x => x.Version == plugin.TestingAssemblyVersion && 
                                      x.Dip17Track != Dip17SystemDefine.StableTrack);
             
             plugin.Changelog = versionStable?.Changelog;
