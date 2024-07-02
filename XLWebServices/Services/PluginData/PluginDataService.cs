@@ -118,10 +118,12 @@ public class PluginDataService
         foreach (var plugin in PluginMaster)
         {
             var versionStable = _dbContext.PluginVersions
+                .Where(x => x.Plugin.InternalName == plugin.InternalName)
                 .OrderByDescending(x => x.PublishedAt)
                 .FirstOrDefault(x => x.Version == plugin.AssemblyVersion && 
                                      x.Dip17Track == Dip17SystemDefine.StableTrack);
             var versionTesting = _dbContext.PluginVersions
+                .Where(x => x.Plugin.InternalName == plugin.InternalName)
                 .OrderByDescending(x => x.PublishedAt)
                 .FirstOrDefault(x => x.Version == plugin.TestingAssemblyVersion && 
                                      x.Dip17Track != Dip17SystemDefine.StableTrack);
