@@ -20,7 +20,6 @@
         <PackageReference Include="Sentry.AspNetCore" Version="4.8.0" />
         <PackageReference Include="StackExchange.Redis" Version="2.6.90" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.2.3" />
-        <PackageReference Include="Tomlyn" Version="0.15.0" />
         <PackageReference Include="YamlDotNet" Version="13.0.2" />
     </ItemGroup>
 

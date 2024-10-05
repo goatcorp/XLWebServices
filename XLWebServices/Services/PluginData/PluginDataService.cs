@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Octokit;
-using Tomlyn;
 using XLWebServices.Data;
 using XLWebServices.Data.Models;
 
@@ -164,8 +163,8 @@ public class PluginDataService
         if (bannedPlugins == null)
             throw new Exception("Failed to load banned plugins");
         
-        var stateUrl = $"https://raw.githubusercontent.com/{repoOwner}/{repoName}/{sha}/State.toml";
-        var state = Toml.ToModel<Dip17State>(await _client.GetStringAsync(stateUrl));
+        var stateUrl = $"https://raw.githubusercontent.com/{repoOwner}/{repoName}/{sha}/state.json";
+        var state = JsonSerializer.Deserialize<Dip17State>(await _client.GetStringAsync(stateUrl));
 
         var d17Master = new Dictionary<string, List<PluginManifest>>();
 
