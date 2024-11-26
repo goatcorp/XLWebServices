@@ -188,7 +188,9 @@ public class DalamudReleaseDataService
         version.RuntimeRequired = true;
         version.RuntimeVersion = declarativeTrack.RuntimeVersion;
         version.Key = declarativeTrack.Key ?? string.Empty;
+        version.HashedKey = declarativeTrack.HashedKey ?? null;
         version.SupportedGameVer = declarativeTrack.ApplicableGameVersion;
+        version.Visible = declarativeTrack.Visible;
         
         if (currentGameVer != null)
             version.IsApplicableForCurrentGameVer = version.SupportedGameVer == currentGameVer;
@@ -347,6 +349,16 @@ public class DalamudReleaseDataService
             public string RuntimeVersion { get; set; } = null!;
             
             public string? Alias { get; set; }
+            
+            /// <summary>
+            /// The key for this track, hashed with SHA256.
+            /// </summary>
+            public string? HashedKey { get; set; }
+
+            /// <summary>
+            /// Whether this track should be visible in the API response.
+            /// </summary>
+            public bool Visible { get; set; } = true;
         }
 
         public Dictionary<string, DalamudDeclarativeTrack> Tracks { get; set; } = new();
@@ -357,6 +369,7 @@ public class DalamudReleaseDataService
         public DalamudVersion(DalamudVersion toCopy)
         {
             this.Key = toCopy.Key;
+            this.HashedKey = toCopy.HashedKey;
             this.Track = toCopy.Track;
             this.AssemblyVersion = toCopy.AssemblyVersion;
             this.RuntimeVersion = toCopy.RuntimeVersion;
@@ -372,6 +385,8 @@ public class DalamudReleaseDataService
         }
         
         public string Key { get; set; }
+        
+        public string? HashedKey { get; set; }
 
         public string Track { get; set; }
 
@@ -389,6 +404,20 @@ public class DalamudReleaseDataService
         public DalamudChangelog? Changelog { get; set; }
 
         public string DownloadUrl { get; set; }
+        
+        public bool Visible { get; set; } = true;
+        
+        public bool PublicRelease => !(HashedKey != null && string.IsNullOrEmpty(Key));
+        
+        public bool ValidateKey(string challenge)
+        {
+            if (string.IsNullOrEmpty(Key) && HashedKey == null) return true;
+                
+            if (HashedKey != null) return Hash.GetStringSha256Hash(challenge)
+                .Equals(HashedKey, StringComparison.InvariantCultureIgnoreCase);
+
+            return challenge == Key;
+        }
     }
 
     public class DalamudChangelog

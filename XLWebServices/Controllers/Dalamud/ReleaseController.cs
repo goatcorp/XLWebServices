@@ -37,7 +37,7 @@ public class ReleaseController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control")
+    public IActionResult VersionInfo([FromQuery] string? track = "", [FromQuery] string? appId = "", [FromQuery] string? bucket = "Control", [FromQuery] string? trackKey = null)
     {
         var releases = this.releaseCache.Get()!;
         
@@ -85,6 +85,13 @@ public class ReleaseController : ControllerBase
                     resultVersion = releases.DalamudVersions["release"];
                     track = "release"; // Normalize track name for stat counting
                 }
+                
+                // If a key is provided, try to validate it. Always validate private releases.
+                if ((trackKey != null || !resultVersion.PublicRelease) && !resultVersion.ValidateKey(trackKey ?? ""))
+                {
+                    resultVersion = releases.DalamudVersions["release"];
+                    track = "release"; // Normalize track name for stat counting
+                }
 
                 DownloadsOverTime.WithLabels(appId, track).Inc();
 
@@ -106,14 +113,14 @@ public class ReleaseController : ControllerBase
                 Key = keyOverride
             };
         }
-
+        
         return new JsonResult(resultVersion);
     }
 
     [HttpGet]
     public IActionResult Meta()
     {
-        return new JsonResult(this.releaseCache.Get()!.DalamudVersions);
+        return new JsonResult(this.releaseCache.Get()!.DalamudVersions.Where(d => d.Value is { Visible: true, PublicRelease: true }));
     }
     
     [HttpGet]
