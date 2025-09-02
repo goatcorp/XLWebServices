@@ -189,6 +189,9 @@ public class DalamudReleaseDataService
         version.RuntimeVersion = declarativeTrack.RuntimeVersion;
         version.Key = declarativeTrack.Key ?? string.Empty;
         version.SupportedGameVer = declarativeTrack.ApplicableGameVersion;
+        version.Hidden = declarativeTrack.Hidden;
+        version.DisplayName = declarativeTrack.DisplayName;
+        version.Description = declarativeTrack.Description;
         
         if (currentGameVer != null)
             version.IsApplicableForCurrentGameVer = version.SupportedGameVer == currentGameVer;
@@ -347,6 +350,12 @@ public class DalamudReleaseDataService
             public string RuntimeVersion { get; set; } = null!;
             
             public string? Alias { get; set; }
+            
+            public bool? Hidden { get; set; }
+            
+            public string? DisplayName { get; set; }
+            
+            public string? Description { get; set; }
         }
 
         public Dictionary<string, DalamudDeclarativeTrack> Tracks { get; set; } = new();
@@ -389,6 +398,12 @@ public class DalamudReleaseDataService
         public DalamudChangelog? Changelog { get; set; }
 
         public string DownloadUrl { get; set; }
+        
+        public bool? Hidden { get; set; }
+            
+        public string? DisplayName { get; set; }
+            
+        public string? Description { get; set; }
     }
 
     public class DalamudChangelog
