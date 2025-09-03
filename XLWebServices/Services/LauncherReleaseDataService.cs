@@ -39,6 +39,9 @@ public class LauncherReleaseDataService
 
     public string? CachedReleasesList { get; private set; }
     public string? CachedPrereleasesList { get; private set; }
+    
+    public string? CachedReleasesJson { get; private set; }
+    public string? CachedPrereleasesJson { get; private set; }
 
     public Release? CachedRelease { get; private set; }
     public Release? CachedPrerelease { get; private set; }
@@ -55,6 +58,9 @@ public class LauncherReleaseDataService
         _discord = discord;
     }
 
+    private const string RELEASES_FILE_NAME = "RELEASES";
+    private const string RELEASES_JSON_FILE_NAME = "releases.win.json";
+    
     public async Task ClearCache()
     {
         _logger.LogInformation("Now getting GitHub releases");
@@ -78,21 +84,31 @@ public class LauncherReleaseDataService
 
             Release newPrerelease, newRelease;
             string newPrereleaseFile, newReleaseFile;
+            string? newPrereleaseJsonFile, newReleaseJsonFile;
             if (ordered.First().Prerelease)
             {
                 newPrerelease = ordered.First();
                 newRelease = ordered.First(x => !x.Prerelease);
 
-                newPrereleaseFile = await GetReleasesFileForRelease(client, newPrerelease);
-                newReleaseFile = await GetReleasesFileForRelease(client, newRelease);
+                newPrereleaseFile = await GetFileForRelease(client, newPrerelease, RELEASES_FILE_NAME)
+                    ?? throw new Exception("Could not get RELEASES file for latest prerelease.");
+                newReleaseFile = await GetFileForRelease(client, newRelease, RELEASES_FILE_NAME)
+                    ?? throw new Exception("Could not get RELEASES file for latest release.");
+                
+                newPrereleaseJsonFile = await GetFileForRelease(client, newPrerelease, RELEASES_JSON_FILE_NAME);
+                newReleaseJsonFile = await GetFileForRelease(client, newRelease, RELEASES_JSON_FILE_NAME);
             }
             else
             {
                 newRelease = ordered.First();
                 newPrerelease = newRelease;
 
-                newReleaseFile = await GetReleasesFileForRelease(client, ordered.First());
+                newReleaseFile = await GetFileForRelease(client, ordered.First(), RELEASES_FILE_NAME)
+                    ?? throw new Exception("Could not get RELEASES file for latest release.");
                 newPrereleaseFile = newReleaseFile;
+                
+                newReleaseJsonFile = await GetFileForRelease(client, newRelease, RELEASES_JSON_FILE_NAME);
+                newPrereleaseJsonFile = newReleaseJsonFile;
             }
 
             var releaseTagValid = await CheckTagSignature(repoOwner, repoName, newRelease.TagName);
@@ -108,6 +124,8 @@ public class LauncherReleaseDataService
             this.CachedPrerelease = newPrerelease;
             this.CachedReleasesList = newReleaseFile;
             this.CachedPrereleasesList = newPrereleaseFile;
+            this.CachedReleasesJson = newReleaseJsonFile;
+            this.CachedPrereleasesJson = newPrereleaseJsonFile;
 
             ReleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedRelease, "CHANGELOG.txt"));
             PrereleaseChangelog = await client.GetStringAsync(GetDownloadUrlForRelease(CachedPrerelease, "CHANGELOG.txt"));
@@ -209,22 +227,43 @@ public class LauncherReleaseDataService
         return true;
     }
 
+    private static readonly string[] FilesToPrecache = new[]
+    {
+        "XIVLauncher-{0}-full.nupkg",
+        "XIVLauncher-{0}-delta.nupkg",
+        "Setup.exe",
+        "XIVLauncher-win-Setup.exe"
+    };
+
     private async Task PrecacheReleaseFiles(Release release)
     {
-        var fullNupkgName = $"XIVLauncher-{release.TagName}-full.nupkg";
-        await _cache.CacheFile(fullNupkgName, release.TagName, GetDownloadUrlForRelease(release, fullNupkgName),
-            FileCacheService.CachedFile.FileCategory.Release);
-
-        var deltaNupkgName = $"XIVLauncher-{release.TagName}-delta.nupkg";
-        await _cache.CacheFile(deltaNupkgName, release.TagName, GetDownloadUrlForRelease(release, deltaNupkgName),
-            FileCacheService.CachedFile.FileCategory.Release);
-
-        var setupExeName = "Setup.exe";
-        await _cache.CacheFile(setupExeName, release.TagName, GetDownloadUrlForRelease(release, setupExeName),
-            FileCacheService.CachedFile.FileCategory.Release);
+        foreach (var filePattern in FilesToPrecache)
+        {
+            var fileName = string.Format(filePattern, release.TagName);
+            try
+            {
+                await _cache.CacheFile(fileName, release.TagName, GetDownloadUrlForRelease(release, fileName),
+                    FileCacheService.CachedFile.FileCategory.Release);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not cache {FileName} for release {TagName}", fileName, release.TagName);
+            }
+        }
     }
 
     public static string GetDownloadUrlForRelease(Release entry, string fileName) => entry.HtmlUrl.Replace("/tag/", "/download/") + "/" + fileName;
 
-    public static async Task<string> GetReleasesFileForRelease(HttpClient client, Release entry) => await client.GetStringAsync(GetDownloadUrlForRelease(entry, "RELEASES"));
+    public async Task<string?> GetFileForRelease(HttpClient client, Release entry, string fileName)
+    {
+        try
+        {
+            return await client.GetStringAsync(GetDownloadUrlForRelease(entry, fileName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not get file {FileName} for release {TagName}", fileName, entry.TagName);
+            return null;
+        }
+    }
 }

@@ -76,6 +76,8 @@ public class LauncherController : ControllerBase
         public LeaseFeatureFlags Flags { get; set; }
 
         public string ReleasesList { get; set; }
+        
+        public string? ReleasesJson { get; set; }
 
         public DateTime? ValidUntil { get; set; }
     }
@@ -174,9 +176,11 @@ public class LauncherController : ControllerBase
         {
             case TRACK_RELEASE:
                 lease.ReleasesList = _launcherReleaseData.Get()!.CachedReleasesList!;
+                lease.ReleasesJson = _launcherReleaseData.Get()!.CachedReleasesJson!;
                 break;
             case TRACK_PRERELEASE:
                 lease.ReleasesList = _launcherReleaseData.Get()!.CachedPrereleasesList!;
+                lease.ReleasesJson = _launcherReleaseData.Get()!.CachedPrereleasesJson!;
                 break;
             default:
                 throw new ArgumentException($"Unknown track: {track}");
@@ -219,6 +223,7 @@ public class LauncherController : ControllerBase
     {
         var allowedFileNames = new[] {
             "Setup.exe",
+            "XIVLauncher-win-Setup.exe",
             $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedRelease!.TagName}-delta.nupkg",
             $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedRelease!.TagName}-full.nupkg",
             $"XIVLauncher-{this._launcherReleaseData.Get()!.CachedPrerelease!.TagName}-delta.nupkg",
